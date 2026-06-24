@@ -930,6 +930,17 @@ function ForumPage({ sub, user }) {
             <span style={{ fontSize: '0.82rem', color: 'var(--faint)' }}>登录后即可发帖</span>
           )}
         </div>
+        {/* Board cards — show when no board selected */}
+        {!board && !loading && (
+          <div className="ak-grid three" style={{ marginBottom: 28 }}>
+            {BOARDS.map((b) => (
+              <button className="preview-link" key={b.code} onClick={() => go(`forum/${b.code.toLowerCase()}`)}>
+                <small>{b.code}</small><strong>{b.name}</strong><p>{b.desc}</p><ChevronRight size={18} />
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? <Empty /> : posts.length ? (
           <div>
             {posts.map((p) => (
@@ -966,7 +977,7 @@ function CreatePost({ user, board, onDone }) {
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef(null);
 
-  if (!user) { go('forum'); return null; }
+  if (!user) return <PageShell eyebrow="" title=""><section className="content-section"><Empty /><p style={{textAlign:'center',color:'var(--faint)'}}>请先登录</p><button className="primary-action small" onClick={() => go('forum')} style={{margin:'12px auto',display:'block'}}>返回论坛</button></section></PageShell>;
 
   const doUpload = async (file) => {
     if (!file?.type?.startsWith('image/')) return;
