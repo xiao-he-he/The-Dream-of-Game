@@ -96,12 +96,38 @@ function useLocalStorage(key, iv) {
 }
 
 /* ============================================================
-   GITHUB AUTH — piggybacks on giscus session
+   GITHUB AUTH — persistent hidden giscus on every page
    ============================================================ */
+function GiscusAuth() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const target = ref.current;
+    if (!target) return;
+    const script = document.createElement('script');
+    script.src = 'https://giscus.app/client.js';
+    script.async = true; script.crossOrigin = 'anonymous';
+    script.setAttribute('data-repo', 'xiao-he-he/The-Dream-of-Game');
+    script.setAttribute('data-repo-id', 'R_kgDOTDpW4Q');
+    script.setAttribute('data-category', 'General');
+    script.setAttribute('data-category-id', 'DIC_kwDOTDpW4c4C_yBL');
+    script.setAttribute('data-mapping', 'url');
+    script.setAttribute('data-term', 'tdg-auth');
+    script.setAttribute('data-reactions-enabled', '0');
+    script.setAttribute('data-emit-metadata', '1');
+    script.setAttribute('data-input-position', 'top');
+    script.setAttribute('data-theme', 'preferred_color_scheme');
+    script.setAttribute('data-lang', 'zh-CN');
+    target.appendChild(script);
+  }, []);
+
+  return <div ref={ref} style={{ position: 'fixed', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none', zIndex: -1 }} />;
+}
+
 function useGitHubAuth() {
   const [user, setUser] = useLocalStorage('tdg-gh-user', null);
 
-  // Listen for giscus session events via postMessage
+  // Listen for giscus session events
   useEffect(() => {
     const onMsg = (e) => {
       if (e.origin !== 'https://giscus.app') return;
@@ -113,9 +139,9 @@ function useGitHubAuth() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, []);
+  }, [setUser]);
 
-  // Login = go to forum page where giscus handles GitHub login natively
+  // Login = go to forum page where visible giscus handles GitHub login
   const login = () => { go('forum'); };
   const logout = () => setUser(null);
 
@@ -1078,6 +1104,7 @@ function App() {
 
   return (
     <ClickSpark sparkColor="#EF4444" sparkSize={20} sparkRadius={30} sparkCount={10} duration={400}>
+      <GiscusAuth />
       <PixelSnow color="#e8eef4" flakeSize={0.008} pixelResolution={800} speed={0.7} density={0.22} variant="snowflake" direction={130} brightness={0.65} />
       <TopNav route={activeRoute} user={user} onLogin={login} onLogout={logout} />
       {page}
