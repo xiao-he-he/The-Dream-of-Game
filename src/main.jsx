@@ -101,6 +101,8 @@ function useLocalStorage(key, iv) {
 const GITHUB_CLIENT_ID = 'Ov23lisHSUn5o5ECAyvL';
 const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+// Cloudflare Worker OAuth 代理（待部署）
+const OAUTH_PROXY = 'https://tdg-oauth.202412063035.workers.dev/token';
 const GITHUB_USER_URL = 'https://api.github.com/user';
 
 function base64URL(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
@@ -125,10 +127,10 @@ function useGitHubAuth() {
     setLoading(true);
     (async () => {
       try {
-        // Exchange code for token
-        const tokenRes = await fetch(GITHUB_TOKEN_URL, {
+        // Exchange code for token (via Cloudflare Worker proxy)
+        const tokenRes = await fetch(OAUTH_PROXY, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             client_id: GITHUB_CLIENT_ID,
             code,
@@ -912,15 +914,28 @@ function GiscusPanel({ config, board }) {
     target.innerHTML = '';
     const script = document.createElement('script');
     script.src = 'https://giscus.app/client.js'; script.async = true; script.crossOrigin = 'anonymous';
-    const attrs = { repo: config.repo, 'repo-id': config.repoId, category: config.category, 'category-id': config.categoryId, mapping: config.mapping || 'pathname', 'reactions-enabled': config.reactionsEnabled || '1', 'emit-metadata': config.emitMetadata || '0', 'input-position': config.inputPosition || 'top', theme: config.theme || 'preferred_color_scheme', lang: 'zh-CN' };
-    if (board) { attrs.term = board.name; attrs.mapping = 'specific'; }
+    // main page: show ALL discussions in category; sub-page: specific to board name
+    const attrs = {
+      repo: config.repo, 'repo-id': config.repoId,
+      category: config.category, 'category-id': config.categoryId,
+      mapping: board ? 'specific' : 'category',
+      term: board ? board.name : undefined,
+      'reactions-enabled': config.reactionsEnabled || '1',
+      'emit-metadata': '1',
+      'input-position': config.inputPosition || 'top',
+      theme: config.theme || 'preferred_color_scheme', lang: 'zh-CN'
+    };
     Object.entries(attrs).forEach(([k, v]) => { if (v) script.setAttribute(`data-${k}`, v); });
     target.appendChild(script);
   }, [config, board]);
+
+  const discussionsUrl = config?.repo ? `https://github.com/${config.repo}/discussions` : '#';
+
   return (
     <section className="content-section animated-section">
       <span className="kicker"><GradientText>发帖区 POSTS</GradientText></span>
       <h2 className="section-title">{board ? `${board.name} 发帖区` : '全部帖子'}</h2>
+      <p className="post-hint">支持拖拽或粘贴图片到输入框上传。帖子管理请前往 <a href={discussionsUrl} target="_blank" rel="noreferrer">GitHub Discussions <ExternalLink size={12} /></a></p>
       <div className="giscus-panel ak-card" ref={ref}>{!config?.repo && <p>讨论系统尚未配置。</p>}</div>
     </section>
   );

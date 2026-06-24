@@ -415,6 +415,12 @@ a { text-decoration: none; }
 .giscus-panel { min-height: 200px; padding: 28px; }
 .giscus-panel p { color: var(--faint); text-align: center; }
 
+.post-hint {
+  font-size: 0.78rem; color: var(--faint); margin: -16px 0 20px; line-height: 1.8;
+}
+.post-hint a { color: var(--accent); font-weight: 500; display: inline-flex; align-items: center; gap: 3px; }
+.post-hint a:hover { text-decoration: underline; }
+
 /* ============================================================
    ICON BUTTON
    ============================================================ */
