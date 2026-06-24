@@ -989,7 +989,8 @@ function CreatePost({ user, board, onDone }) {
   const doUpload = async (file) => {
     if (!file?.type?.startsWith('image/')) return;
     setUploading(true);
-    const name = `${user.id}/${Date.now()}-${file.name}`;
+    const ext = file.name.split('.').pop().replace(/[^a-zA-Z0-9]/g, '');
+    const name = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
     const { data, error } = await supabase.storage.from(STORAGE_BUCKET).upload(name, file);
     setUploading(false);
     if (error) { alert('上传失败: ' + error.message); return null; }
