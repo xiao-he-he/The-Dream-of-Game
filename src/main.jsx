@@ -115,15 +115,22 @@ function useSupabaseAuth() {
   // Ensure profile exists (first-time login)
   const ensureProfile = async (u) => {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+    const login = u.user_metadata?.user_name || '';
+    const isXiaoHeHe = login === 'xiao-he-he';
     if (!profile) {
-      // First login — create profile
       await supabase.from('profiles').insert({
         id: u.id,
-        username: u.user_metadata?.user_name || 'user',
-        display_name: u.user_metadata?.full_name || u.user_metadata?.user_name || u.email,
-        avatar_url: u.user_metadata?.avatar_url || ''
+        username: login || 'user',
+        display_name: u.user_metadata?.full_name || login || u.email,
+        avatar_url: u.user_metadata?.avatar_url || '',
+        is_admin: isXiaoHeHe
       });
-      return { is_admin: false };
+      return { is_admin: isXiaoHeHe };
+    }
+    // Update admin status if it should be but isn't
+    if (isXiaoHeHe && !profile.is_admin) {
+      await supabase.from('profiles').update({ is_admin: true }).eq('id', u.id);
+      return { ...profile, is_admin: true };
     }
     return profile;
   };
