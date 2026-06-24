@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createClient } from '@supabase/supabase-js';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
@@ -9,7 +10,7 @@ import {
 import {
   Archive, BookOpen, CalendarDays, ChevronRight, Disc3, Download, Expand, ExternalLink,
   FileText, Film, Home, LayoutDashboard, Lock, Maximize, MessageSquare, Minimize,
-  Music2, Pause, Play, Repeat, Search, Shuffle, SkipBack, SkipForward, User, Volume2, X, ZoomIn, ZoomOut, ListMusic
+  Music2, Pause, Play, Repeat, Search, Shuffle, SkipBack, SkipForward, Upload, User, Volume2, X, ZoomIn, ZoomOut, ListMusic, ClipboardCopy, ImageIcon
 } from 'lucide-react';
 import './styles.css';
 
@@ -19,6 +20,15 @@ gsap.registerPlugin(ScrollTrigger);
    BASE PATH — works in dev (/) and GitHub Pages (/The-Dream-of-Game/)
    ============================================================ */
 const BASE = import.meta.env.BASE_URL;
+
+/* ============================================================
+   SUPABASE CLIENT
+   ============================================================ */
+const supabase = createClient(
+  'https://jneojujazbtafdihtvul.supabase.co',
+  'sb_publishable_olYKJREN0z2jRnNE7Dk2NA_WiLNUX2O'
+);
+const STORAGE_BUCKET = 'forum-images';
 
 /* ============================================================
    CONTENT CONFIG
@@ -96,56 +106,56 @@ function useLocalStorage(key, iv) {
 }
 
 /* ============================================================
-   GITHUB AUTH — persistent hidden giscus on every page
+   SUPABASE AUTH — GitHub OAuth
    ============================================================ */
-function GiscusAuth() {
-  const ref = useRef(null);
+function useSupabaseAuth() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const target = ref.current;
-    if (!target) return;
-    const script = document.createElement('script');
-    script.src = 'https://giscus.app/client.js';
-    script.async = true; script.crossOrigin = 'anonymous';
-    script.setAttribute('data-repo', 'xiao-he-he/The-Dream-of-Game');
-    script.setAttribute('data-repo-id', 'R_kgDOTDpW4Q');
-    script.setAttribute('data-category', 'General');
-    script.setAttribute('data-category-id', 'DIC_kwDOTDpW4c4C_yBL');
-    script.setAttribute('data-mapping', 'url');
-    script.setAttribute('data-term', 'tdg-auth');
-    script.setAttribute('data-reactions-enabled', '0');
-    script.setAttribute('data-emit-metadata', '1');
-    script.setAttribute('data-input-position', 'top');
-    script.setAttribute('data-theme', 'preferred_color_scheme');
-    script.setAttribute('data-lang', 'zh-CN');
-    target.appendChild(script);
+    // Check existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const u = session.user;
+        supabase.from('profiles').select('*').eq('id', u.id).single().then(({ data: profile }) => {
+          setUser({
+            id: u.id, login: u.user_metadata?.user_name || u.email,
+            name: u.user_metadata?.full_name || u.user_metadata?.user_name,
+            avatar: u.user_metadata?.avatar_url, isAdmin: profile?.is_admin || false
+          });
+        });
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const u = session.user;
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+        setUser({
+          id: u.id, login: u.user_metadata?.user_name || u.email,
+          name: u.user_metadata?.full_name || u.user_metadata?.user_name,
+          avatar: u.user_metadata?.avatar_url, isAdmin: profile?.is_admin || false
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  return <div ref={ref} style={{ position: 'fixed', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none', zIndex: -1 }} />;
-}
+  const login = () => {
+    supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo: window.location.origin + BASE }
+    });
+  };
+  const logout = () => supabase.auth.signOut();
 
-function useGitHubAuth() {
-  const [user, setUser] = useLocalStorage('tdg-gh-user', null);
-
-  // Listen for giscus session events
-  useEffect(() => {
-    const onMsg = (e) => {
-      if (e.origin !== 'https://giscus.app') return;
-      const d = e.data?.giscus;
-      if (d?.session?.login) {
-        const s = d.session;
-        setUser({ login: s.login, name: s.name || s.login, avatar: s.avatarUrl || `https://github.com/${s.login}.png`, isAdmin: s.login === 'xiao-he-he' });
-      }
-    };
-    window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, [setUser]);
-
-  // Login = go to forum page where visible giscus handles GitHub login
-  const login = () => { go('forum'); };
-  const logout = () => setUser(null);
-
-  return { user, login, logout };
+  return { user, loading, login, logout };
 }
 
 /* ============================================================
@@ -835,76 +845,275 @@ function EventsPage({ data }) {
 /* ============================================================
    FORUM PAGE — Sub-pages per board
    ============================================================ */
-function ForumPage({ data, sub }) {
-  const boards = data.forum;
-  const activeBoard = sub ? boards.find(b => b.code.toLowerCase() === sub.toLowerCase()) : null;
+/* ============================================================
+   FORUM DATA HOOKS
+   ============================================================ */
+const BOARDS = [
+  { code: 'DEV', name: '游戏开发', desc: '引擎、玩法、系统设计、工程问题与开发日志。' },
+  { code: 'TECH', name: '技术交流', desc: 'Unity、UE5、工具链、性能优化与疑难排查。' },
+  { code: 'ART', name: '美术设计', desc: '概念设计、UI、动效、技术美术与资产生产。' },
+  { code: 'TEAM', name: '项目招募', desc: '寻找策划、程序、美术、音频与制作协作者。' },
+  { code: 'DROP', name: '资源分享', desc: '课程、工具、插件、模板和公开学习资料。' },
+  { code: 'CHAT', name: '闲聊区', desc: '游戏体验、灵感碎片和不适合归类的信号。' }
+];
+
+function usePosts(board, sort) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    let q = supabase.from('posts').select('*, author:author_id(id,username,display_name,avatar_url)');
+    if (board) q = q.eq('board', board);
+    if (sort === 'hot') q = q.order('likes_count', { ascending: false }).order('comments_count', { ascending: false });
+    else q = q.order('created_at', { ascending: false });
+    q.range(0, 49).then(({ data }) => { setPosts(data || []); setLoading(false); });
+  }, [board, sort]);
+  return { posts, loading, setPosts };
+}
+
+function usePostDetail(postId) {
+  const [post, setPost] = useState(null);
+  const [comments, setComments] = useState([]);
+  useEffect(() => {
+    if (!postId) return;
+    supabase.from('posts').select('*, author:author_id(id,username,display_name,avatar_url)').eq('id', postId).single().then(({ data }) => setPost(data));
+    supabase.from('comments').select('*, author:author_id(id,username,display_name,avatar_url)').eq('post_id', postId).order('created_at', { ascending: true }).then(({ data }) => setComments(data || []));
+  }, [postId]);
+  return { post, comments, setComments };
+}
+
+/* ============================================================
+   FORUM PAGE — Full Supabase-powered
+   ============================================================ */
+function ForumPage({ sub, user }) {
+  const board = sub?.toUpperCase();
+  const boardInfo = BOARDS.find(b => b.code === board);
+  const [sort, setSort] = useState('hot');
+  const { posts, loading } = usePosts(board, sort);
+  const [showCreate, setShowCreate] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+
+  if (detailId) return <PostDetailView postId={detailId} user={user} onBack={() => setDetailId(null)} />;
+  if (showCreate) return <CreatePost user={user} board={board || 'CHAT'} onDone={() => setShowCreate(false)} />;
 
   return (
-    <PageShell eyebrow="论坛 FORUM" title={activeBoard ? `${activeBoard.name}` : '社团论坛'}>
+    <PageShell eyebrow="论坛 FORUM" title={boardInfo ? boardInfo.name : '社团论坛'}>
       <section className="content-section animated-section">
         <div className="forum-sub-nav">
-          <button className={!sub ? 'active' : ''} onClick={() => go('forum')}>所有帖子</button>
-          {boards.map((board) => (
-            <button key={board.code} className={sub === board.code.toLowerCase() ? 'active' : ''} onClick={() => go(`forum/${board.code.toLowerCase()}`)}>
-              {board.code} {board.name}
-            </button>
+          <button className={!board ? 'active' : ''} onClick={() => go('forum')}>所有帖子</button>
+          {BOARDS.map((b) => (
+            <button key={b.code} className={board === b.code ? 'active' : ''} onClick={() => go(`forum/${b.code.toLowerCase()}`)}>{b.code} {b.name}</button>
           ))}
         </div>
-        {activeBoard ? (
-          <article className="ak-card">
-            <small>{activeBoard.code}</small>
-            <h3>{activeBoard.name}</h3>
-            <p>{activeBoard.description}</p>
-            <footer>{activeBoard.threads ? `${activeBoard.threads} 条帖子` : '暂无帖子'}</footer>
-          </article>
-        ) : (
-          boards.length ? (
-            <div className="ak-grid three">
-              {boards.map((board) => (
-                <button className="preview-link" key={board.name} onClick={() => go(`forum/${board.code.toLowerCase()}`)}>
-                  <small>{board.code}</small><strong>{board.name}</strong><p>{board.description}</p><footer>{board.threads ? `${board.threads} 条帖子` : '暂无帖子'}</footer><ChevronRight size={18} />
-                </button>
-              ))}
-            </div>
-          ) : <Empty />
-        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+          <div className="forum-sub-nav" style={{ marginBottom: 0 }}>
+            <button className={sort === 'hot' ? 'active' : ''} onClick={() => setSort('hot')}>热门</button>
+            <button className={sort === 'new' ? 'active' : ''} onClick={() => setSort('new')}>最新</button>
+          </div>
+          {user ? (
+            <button className="primary-action small" onClick={() => setShowCreate(true)}>发新帖</button>
+          ) : (
+            <span style={{ fontSize: '0.82rem', color: 'var(--faint)' }}>登录后即可发帖</span>
+          )}
+        </div>
+        {loading ? <Empty /> : posts.length ? (
+          <div>
+            {posts.map((p) => (
+              <button className="forum-post-item ak-card" key={p.id} onClick={() => setDetailId(p.id)} style={{ minHeight: 'auto', width: '100%', marginBottom: 8, textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  {p.author?.avatar_url && <img src={p.author.avatar_url} alt="" style={{ width: 20, height: 20, borderRadius: '50%' }} />}
+                  <small>{p.author?.display_name || p.author?.username || '匿名'}</small>
+                  <small style={{ color: 'var(--faint)' }}>{new Date(p.created_at).toLocaleDateString('zh-CN')}</small>
+                  <small style={{ marginLeft: 'auto' }}>{BOARDS.find(b => b.code === p.board)?.code || p.board}</small>
+                </div>
+                <strong style={{ fontSize: '1.05rem' }}>{p.title}</strong>
+                <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.8rem', color: 'var(--faint)' }}>
+                  <span>❤ {p.likes_count || 0}</span>
+                  <span>💬 {p.comments_count || 0}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : <Empty />}
       </section>
-      <GiscusPanel config={data.giscus} board={activeBoard} />
     </PageShell>
   );
 }
 
-function GiscusPanel({ config, board }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const target = ref.current; if (!target || !config?.repo || !config?.repoId) return;
-    target.innerHTML = '';
-    const script = document.createElement('script');
-    script.src = 'https://giscus.app/client.js'; script.async = true; script.crossOrigin = 'anonymous';
-    // main page: show ALL discussions in category; sub-page: specific to board name
-    const attrs = {
-      repo: config.repo, 'repo-id': config.repoId,
-      category: config.category, 'category-id': config.categoryId,
-      mapping: board ? 'specific' : 'category',
-      term: board ? board.name : undefined,
-      'reactions-enabled': config.reactionsEnabled || '1',
-      'emit-metadata': '1',
-      'input-position': config.inputPosition || 'top',
-      theme: config.theme || 'preferred_color_scheme', lang: 'zh-CN'
-    };
-    Object.entries(attrs).forEach(([k, v]) => { if (v) script.setAttribute(`data-${k}`, v); });
-    target.appendChild(script);
-  }, [config, board]);
+/* ============================================================
+   CREATE POST
+   ============================================================ */
+function CreatePost({ user, board, onDone }) {
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [selBoard, setSelBoard] = useState(board);
+  const [tags, setTags] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const fileRef = useRef(null);
 
-  const discussionsUrl = config?.repo ? `https://github.com/${config.repo}/discussions` : '#';
+  if (!user) { go('forum'); return null; }
+
+  const doUpload = async (file) => {
+    if (!file?.type?.startsWith('image/')) return;
+    setUploading(true);
+    const name = `${user.id}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).upload(name, file);
+    setUploading(false);
+    if (error) { alert('上传失败: ' + error.message); return null; }
+    const { data: { publicUrl } } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+    return publicUrl;
+  };
+
+  const onFile = async (e) => {
+    const url = await doUpload(e.target.files[0]);
+    if (url) setContent(c => c + `\n![](${url})\n`);
+  };
+
+  const submit = async () => {
+    if (!title.trim()) return alert('请输入标题');
+    setSubmitting(true);
+    const { error } = await supabase.from('posts').insert({
+      title: title.trim(), content: content.trim(), board: selBoard,
+      author_id: user.id, tags: tags.split(/[,，]/).map(t => t.trim()).filter(Boolean)
+    });
+    setSubmitting(false);
+    if (error) alert('发帖失败: ' + error.message);
+    else onDone();
+  };
 
   return (
-    <section className="content-section animated-section">
-      <span className="kicker"><GradientText>发帖区 POSTS</GradientText></span>
-      <h2 className="section-title">{board ? `${board.name} 发帖区` : '全部帖子'}</h2>
-      <p className="post-hint">支持拖拽或粘贴图片到输入框上传。帖子管理请前往 <a href={discussionsUrl} target="_blank" rel="noreferrer">GitHub Discussions <ExternalLink size={12} /></a></p>
-      <div className="giscus-panel ak-card" ref={ref}>{!config?.repo && <p>讨论系统尚未配置。</p>}</div>
-    </section>
+    <PageShell eyebrow="发帖 NEW POST" title="发布新帖">
+      <section className="content-section animated-section" style={{ maxWidth: 800 }}>
+        <select className="board-select" value={selBoard} onChange={e => setSelBoard(e.target.value)}>
+          {BOARDS.map(b => <option key={b.code} value={b.code}>{b.code} {b.name}</option>)}
+        </select>
+        <input className="post-input" placeholder="帖子标题" value={title} onChange={e => setTitle(e.target.value)} />
+        <textarea className="post-textarea" placeholder="帖子内容…（支持 Markdown）" rows={10} value={content} onChange={e => setContent(e.target.value)} />
+        <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input className="post-input" style={{ flex: 1, minWidth: 200 }} placeholder="标签（逗号分隔）" value={tags} onChange={e => setTags(e.target.value)} />
+          <button className="ghost-action small" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            {uploading ? '上传中…' : '上传图片'}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFile} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="primary-action small" onClick={submit} disabled={submitting}>{submitting ? '发布中…' : '发布帖子'}</button>
+          <button className="ghost-action small" onClick={onDone}>取消</button>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
+/* ============================================================
+   POST DETAIL + COMMENTS + LIKES
+   ============================================================ */
+function PostDetailView({ postId, user, onBack }) {
+  const { post, comments, setComments } = usePostDetail(postId);
+  const [commentText, setCommentText] = useState('');
+  const [liked, setLiked] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user && postId) {
+      supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', user.id).single().then(({ data }) => setLiked(!!data));
+    }
+  }, [user, postId]);
+
+  if (!post) return <PageShell eyebrow="" title=""><section className="content-section"><Empty /></section></PageShell>;
+
+  const toggleLike = async () => {
+    if (!user) return alert('请先登录');
+    if (liked) {
+      await supabase.from('likes').delete().eq('post_id', postId).eq('user_id', user.id);
+      setLiked(false);
+    } else {
+      await supabase.from('likes').insert({ post_id: postId, user_id: user.id });
+      setLiked(true);
+    }
+  };
+
+  const addComment = async () => {
+    if (!user) return alert('请先登录');
+    if (!commentText.trim()) return;
+    setSubmitting(true);
+    const { data, error } = await supabase.from('comments').insert({ post_id: postId, author_id: user.id, content: commentText.trim() }).select('*, author:author_id(id,username,display_name,avatar_url)').single();
+    setSubmitting(false);
+    if (error) alert('评论失败: ' + error.message);
+    else { setComments(c => [...c, data]); setCommentText(''); }
+  };
+
+  const delPost = async () => {
+    if (!confirm('确定删除此帖？')) return;
+    await supabase.from('posts').delete().eq('id', postId);
+    onBack();
+  };
+
+  const delComment = async (cid) => {
+    if (!confirm('确定删除此评论？')) return;
+    await supabase.from('comments').delete().eq('id', cid);
+    setComments(c => c.filter(x => x.id !== cid));
+  };
+
+  return (
+    <PageShell eyebrow="帖子 POST" title={post.title}>
+      <section className="content-section animated-section" style={{ maxWidth: 800 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          {post.author?.avatar_url && <img src={post.author.avatar_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />}
+          <div>
+            <strong style={{ fontSize: '0.95rem' }}>{post.author?.display_name || post.author?.username || '匿名'}</strong>
+            <small style={{ display: 'block', color: 'var(--faint)' }}>
+              {BOARDS.find(b => b.code === post.board)?.name} · {new Date(post.created_at).toLocaleString('zh-CN')}
+            </small>
+          </div>
+          {(user?.id === post.author_id || user?.isAdmin) && (
+            <button className="icon-button" onClick={delPost} style={{ marginLeft: 'auto' }} title="删除帖子"><X size={14} /></button>
+          )}
+        </div>
+        <div className="post-content" dangerouslySetInnerHTML={{ __html: post.content.replace(/\n/g, '<br/>').replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:4px;margin:8px 0" />') }} />
+        {post.tags?.length > 0 && (
+          <div className="tag-row" style={{ marginTop: 16 }}>{post.tags.map(t => <span key={t}>{t}</span>)}</div>
+        )}
+        <div style={{ display: 'flex', gap: 12, margin: '20px 0', alignItems: 'center' }}>
+          <button className={`icon-button${liked ? ' active' : ''}`} onClick={toggleLike}>
+            ❤ {post.likes_count || 0}
+          </button>
+          <span style={{ color: 'var(--faint)', fontSize: '0.85rem' }}>💬 {comments.length} 条评论</span>
+        </div>
+
+        {/* Comments */}
+        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16 }}>
+          <h3 style={{ fontSize: '1rem', marginBottom: 12 }}>评论</h3>
+          {comments.map(c => (
+            <div key={c.id} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+              {c.author?.avatar_url && <img src={c.author.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: '50%', marginTop: 2 }} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <strong style={{ fontSize: '0.85rem' }}>{c.author?.display_name || c.author?.username || '匿名'}</strong>
+                  <small style={{ color: 'var(--faint)' }}>{new Date(c.created_at).toLocaleString('zh-CN')}</small>
+                  {(user?.id === c.author_id || user?.isAdmin) && (
+                    <button className="icon-button" onClick={() => delComment(c.id)} style={{ marginLeft: 'auto', width: 26, height: 26 }}><X size={12} /></button>
+                  )}
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: '0.9rem', lineHeight: 1.6 }}>{c.content}</p>
+              </div>
+            </div>
+          ))}
+          {user ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <input className="post-input" style={{ flex: 1 }} placeholder="写评论…" value={commentText} onChange={e => setCommentText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addComment()} />
+              <button className="primary-action small" onClick={addComment} disabled={submitting}>发送</button>
+            </div>
+          ) : (
+            <p style={{ color: 'var(--faint)', fontSize: '0.85rem' }}>登录后即可评论</p>
+          )}
+        </div>
+
+        <button className="ghost-action small" onClick={onBack} style={{ marginTop: 20 }}>← 返回列表</button>
+      </section>
+    </PageShell>
   );
 }
 
@@ -1082,7 +1291,7 @@ function MusicPlayer({ tracks }) {
 function App() {
   const { route, sub } = useRoute();
   const { data, loading } = useContent();
-  const { user, login, logout } = useGitHubAuth();
+  const { user, login, logout } = useSupabaseAuth();
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
 
@@ -1093,7 +1302,7 @@ function App() {
       case 'archive': return <ArchivePage {...props} />;
       case 'knowledge': return <KnowledgePage {...props} />;
       case 'events': return <EventsPage {...props} />;
-      case 'forum': return <ForumPage {...props} sub={sub} />;
+      case 'forum': return <ForumPage sub={sub} user={user} />;
       case 'media': return <MediaPage {...props} />;
       case 'music': return <MusicPage {...props} />;
       case 'resources': return <ResourcesPage {...props} />;
@@ -1104,7 +1313,6 @@ function App() {
 
   return (
     <ClickSpark sparkColor="#EF4444" sparkSize={20} sparkRadius={30} sparkCount={10} duration={400}>
-      <GiscusAuth />
       <PixelSnow color="#e8eef4" flakeSize={0.008} pixelResolution={800} speed={0.7} density={0.22} variant="snowflake" direction={130} brightness={0.65} />
       <TopNav route={activeRoute} user={user} onLogin={login} onLogout={logout} />
       {page}

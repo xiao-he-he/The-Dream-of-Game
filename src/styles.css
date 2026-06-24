@@ -421,6 +421,49 @@ a { text-decoration: none; }
 .post-hint a { color: var(--accent); font-weight: 500; display: inline-flex; align-items: center; gap: 3px; }
 .post-hint a:hover { text-decoration: underline; }
 
+.forum-post-item { cursor: pointer; }
+.forum-post-item:hover { border-color: var(--accent-dim); }
+
+.board-select {
+  width: 100%; padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--line); background: rgba(232,238,244,0.05);
+  color: var(--text); font-size: 0.9rem;
+}
+
+.post-input {
+  width: 100%; padding: 10px 14px; margin-bottom: 8px;
+  border: 1px solid var(--line); background: rgba(232,238,244,0.04);
+  color: var(--text); font-size: 0.9rem; outline: none;
+}
+.post-input:focus { border-color: var(--accent-dim); }
+
+.post-textarea {
+  width: 100%; padding: 12px 14px; margin-bottom: 8px; resize: vertical;
+  border: 1px solid var(--line); background: rgba(232,238,244,0.04);
+  color: var(--text); font-size: 0.9rem; outline: none; font-family: inherit; line-height: 1.7;
+}
+.post-textarea:focus { border-color: var(--accent-dim); }
+
+.post-content { line-height: 1.8; font-size: 0.95rem; color: var(--text); }
+.post-content img { max-width: 100%; border-radius: 4px; margin: 8px 0; border: 1px solid var(--line); }
+
+/* Image Upload Zone */
+.image-upload-zone {
+  min-height: 140px; padding: 28px;
+  border: 1px dashed var(--line); background: rgba(232,238,244,0.02);
+  cursor: pointer; transition: border-color 0.3s, background 0.3s;
+  display: grid; place-items: center; text-align: center;
+}
+.image-upload-zone:hover { border-color: var(--accent-dim); background: rgba(232,238,244,0.04); }
+.upload-prompt { display: grid; gap: 12px; justify-items: center; color: var(--faint); }
+.upload-prompt small { font-size: 0.75rem; color: var(--faint); opacity: 0.7; }
+.upload-status { display: flex; align-items: center; gap: 12px; color: var(--accent); }
+.upload-result { display: grid; gap: 12px; justify-items: center; width: 100%; }
+.upload-url { font-size: 0.8rem; color: var(--accent); word-break: break-all; max-width: 100%; padding: 8px 12px; background: rgba(232,238,244,0.05); border-radius: 4px; }
+.upload-actions { display: flex; gap: 8px; }
+.upload-hint { font-size: 0.75rem; color: var(--faint); margin: 0; }
+.upload-error { color: #ef4444; font-size: 0.82rem; margin-top: 8px; }
+
 /* ============================================================
    ICON BUTTON
    ============================================================ */
