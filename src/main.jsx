@@ -525,13 +525,12 @@ function useGsapPage(route, loading) {
       ctx = gsap.context(() => {
         const isHome = route === 'home';
 
-        // === OPENING MASK (all pages, ~4s total sequence) ===
-        const mask = document.querySelector(isHome ? '.opening-mask' : '.opening-mask-sub');
-        if (mask) {
-          gsap.fromTo(mask,
-            { yPercent: 0 },
-            { yPercent: -105, duration: isHome ? 0.4 : 0.35, ease: 'power4.inOut' }
-          );
+        // === OPENING MASK (home only — sub-pages use CSS animation) ===
+        if (isHome) {
+          const mask = document.querySelector('.opening-mask');
+          if (mask) {
+            gsap.fromTo(mask, { yPercent: 0 }, { yPercent: -105, duration: 0.4, ease: 'power4.inOut' });
+          }
         }
 
         // === TITLE DECOMPRESSION (all pages) ===
@@ -668,10 +667,10 @@ function TopNav({ route, user, onLogin, onLogout }) {
 /* ============================================================
    LAYOUT SHELLS
    ============================================================ */
-function PageShell({ eyebrow, title, children, noMask }) {
+function PageShell({ eyebrow, title, children }) {
   return (
     <main className="page-shell">
-      {!noMask && <div className="opening-mask-sub" />}
+      <div className="opening-mask-sub" />
       <section className="page-hero animated-section">
         <span className="kicker"><GradientText>{eyebrow}</GradientText></span>
         <h1 className="section-title"><span className="sub-hero-title-line">{title}</span></h1>
@@ -984,7 +983,7 @@ function CreatePost({ user, board, onDone }) {
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef(null);
 
-  if (!user) return <PageShell eyebrow="" title="" noMask><section className="content-section"><Empty /><p style={{textAlign:'center',color:'var(--faint)'}}>请先登录</p><button className="primary-action small" onClick={() => go('forum')} style={{margin:'12px auto',display:'block'}}>返回论坛</button></section></PageShell>;
+  if (!user) return <PageShell eyebrow="" title=""><section className="content-section"><Empty /><p style={{textAlign:'center',color:'var(--faint)'}}>请先登录</p><button className="primary-action small" onClick={() => go('forum')} style={{margin:'12px auto',display:'block'}}>返回论坛</button></section></PageShell>;
 
   const doUpload = async (file) => {
     if (!file?.type?.startsWith('image/')) return;
@@ -1016,7 +1015,7 @@ function CreatePost({ user, board, onDone }) {
   };
 
   return (
-    <PageShell eyebrow="发帖 NEW POST" title="发布新帖" noMask>
+    <PageShell eyebrow="发帖 NEW POST" title="发布新帖">
       <section className="content-section animated-section" style={{ maxWidth: 800 }}>
         <select className="board-select" value={selBoard} onChange={e => setSelBoard(e.target.value)}>
           {BOARDS.map(b => <option key={b.code} value={b.code}>{b.code} {b.name}</option>)}
@@ -1054,7 +1053,7 @@ function PostDetailView({ postId, user, onBack }) {
     }
   }, [user, postId]);
 
-  if (!post) return <PageShell eyebrow="" title="" noMask><section className="content-section"><Empty /></section></PageShell>;
+  if (!post) return <PageShell eyebrow="" title=""><section className="content-section"><Empty /></section></PageShell>;
 
   const toggleLike = async () => {
     if (!user) return alert('请先登录');
@@ -1090,7 +1089,7 @@ function PostDetailView({ postId, user, onBack }) {
   };
 
   return (
-    <PageShell eyebrow="帖子 POST" title={post.title} noMask>
+    <PageShell eyebrow="帖子 POST" title={post.title}>
       <section className="content-section animated-section" style={{ maxWidth: 800 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           {post.author?.avatar_url && <img src={post.author.avatar_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%' }} />}
