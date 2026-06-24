@@ -1,9 +1,10 @@
 {
-  "_comment": "推送到 GitHub 后，在此填写你的仓库信息即可启用 giscus 评论系统。详见 https://giscus.app",
-  "repo": "",
-  "repoId": "",
-  "category": "",
-  "categoryId": "",
+  "_comment": "giscus 评论系统配置 — 已启用",
+  "repo": "xiao-he-he/The-Dream-of-Game",
+  "repoId": "R_kgDOTDpW4Q",
+  "category": "General",
+  "categoryId": "DIC_kwDOTDpW4c4C_yBL",
   "mapping": "pathname",
-  "theme": "transparent_dark"
+  "theme": "preferred_color_scheme",
+  "lang": "zh-CN"
 }
