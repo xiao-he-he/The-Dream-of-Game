@@ -60,6 +60,7 @@ function exposeWorkspaceFolders() {
 }
 
 export default defineConfig({
+  base: '/The-Dream-of-Game/',
   plugins: [react(), exposeWorkspaceFolders()],
   server: {
     port: 5173,
