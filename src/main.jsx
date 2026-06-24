@@ -112,61 +112,74 @@ function randomString(len) { return base64URL(crypto.getRandomValues(new Uint8Ar
 
 function useGitHubAuth() {
   const [user, setUser] = useLocalStorage('tdg-gh-user', null);
-  const [loading, setLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useState(null); // null | 'processing' | 'error'
 
-  // Handle OAuth callback
+  // Handle OAuth callback — check immediately, not just in useEffect
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const hasCode = !!code;
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (!code || user) return;
-
+    if (!code) return;
+    // Don't check `user` here — just process the code regardless
     const verifier = sessionStorage.getItem('tdg-pkce-verifier');
-    if (!verifier) return;
+    if (!verifier) {
+      // Clean URL even if no verifier (stale code)
+      const url = new URL(window.location);
+      url.searchParams.delete('code'); url.searchParams.delete('state');
+      window.history.replaceState({}, '', url);
+      return;
+    }
     sessionStorage.removeItem('tdg-pkce-verifier');
+    setAuthStatus('processing');
 
-    setLoading(true);
     (async () => {
       try {
-        // Exchange code for token (via Cloudflare Worker proxy)
+        // Step 1: Exchange code for token via Cloudflare Worker
         const tokenRes = await fetch(OAUTH_PROXY, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            client_id: GITHUB_CLIENT_ID,
-            code,
+            client_id: GITHUB_CLIENT_ID, code,
             redirect_uri: (window.location.origin + BASE).replace(/\/$/, ''),
             code_verifier: verifier
           })
         });
         const tokenData = await tokenRes.json();
-        if (tokenData.error) throw new Error(tokenData.error_description);
+        if (tokenData.error) throw new Error(tokenData.error_description || tokenData.error);
 
-        // Fetch user info
+        // Step 2: Fetch user info (GitHub API supports CORS)
         const userRes = await fetch(GITHUB_USER_URL, {
           headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
         });
         const userData = await userRes.json();
+        if (userData.message) throw new Error(userData.message);
 
-        const ghUser = {
-          login: userData.login,
-          name: userData.name || userData.login,
-          avatar: userData.avatar_url,
-          isAdmin: userData.login === 'xiao-he-he',
+        // Step 3: Save user
+        setUser({
+          login: userData.login, name: userData.name || userData.login,
+          avatar: userData.avatar_url, isAdmin: userData.login === 'xiao-he-he',
           token: tokenData.access_token
-        };
-        setUser(ghUser);
+        });
+        setAuthStatus(null);
 
         // Clean URL
         const url = new URL(window.location);
-        url.searchParams.delete('code');
-        url.searchParams.delete('state');
+        url.searchParams.delete('code'); url.searchParams.delete('state');
         window.history.replaceState({}, '', url);
       } catch (err) {
-        console.error('GitHub OAuth error:', err);
+        console.error('OAuth failed:', err);
+        setAuthStatus('error');
+        // Clean URL after 3s
+        setTimeout(() => {
+          const url = new URL(window.location);
+          url.searchParams.delete('code'); url.searchParams.delete('state');
+          window.history.replaceState({}, '', url);
+          setAuthStatus(null);
+        }, 3000);
       }
-      setLoading(false);
     })();
-  }, []);
+  }, []); // Run once on mount
 
   const login = async () => {
     const verifier = randomString(64);
@@ -178,7 +191,7 @@ function useGitHubAuth() {
 
   const logout = () => setUser(null);
 
-  return { user, loading, login, logout };
+  return { user, authStatus, login, logout };
 }
 
 /* ============================================================
@@ -1115,9 +1128,13 @@ function MusicPlayer({ tracks }) {
 function App() {
   const { route, sub } = useRoute();
   const { data, loading } = useContent();
-  const { user, login, logout } = useGitHubAuth();
+  const { user, authStatus, login, logout } = useGitHubAuth();
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
+
+  // OAuth callback processing state
+  if (authStatus === 'processing') return <div className="loading">登录中，请稍候…</div>;
+  if (authStatus === 'error') return <div className="loading">登录失败，请重试。<br/><button className="ghost-action small" onClick={() => { const url = new URL(window.location); url.searchParams.delete('code'); url.searchParams.delete('state'); window.history.replaceState({}, '', url); window.location.reload(); }} style={{marginTop:16}}>返回首页</button></div>;
 
   const page = useMemo(() => {
     if (loading) return <div className="loading">载入中</div>;
