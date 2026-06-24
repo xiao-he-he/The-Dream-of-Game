@@ -132,7 +132,7 @@ function useGitHubAuth() {
           body: JSON.stringify({
             client_id: GITHUB_CLIENT_ID,
             code,
-            redirect_uri: window.location.origin + BASE,
+            redirect_uri: (window.location.origin + BASE).replace(/\/$/, ''),
             code_verifier: verifier
           })
         });
@@ -170,7 +170,7 @@ function useGitHubAuth() {
     const verifier = randomString(64);
     sessionStorage.setItem('tdg-pkce-verifier', verifier);
     const challenge = await pkceChallenge(verifier);
-    const redirectUri = window.location.origin + BASE;
+    const redirectUri = (window.location.origin + BASE).replace(/\/$/, '');
     window.location.href = `${GITHUB_AUTH_URL}?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user&state=tdg&code_challenge=${challenge}&code_challenge_method=S256`;
   };
 
