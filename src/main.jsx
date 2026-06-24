@@ -96,102 +96,30 @@ function useLocalStorage(key, iv) {
 }
 
 /* ============================================================
-   GITHUB OAUTH — PKCE flow, no server needed
+   GITHUB AUTH — piggybacks on giscus session
    ============================================================ */
-const GITHUB_CLIENT_ID = 'Ov23lisHSUn5o5ECAyvL';
-const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';
-const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-// Cloudflare Worker OAuth 代理（待部署）
-const OAUTH_PROXY = 'https://tdg-oauth.202412063035.workers.dev/token';
-const GITHUB_USER_URL = 'https://api.github.com/user';
-
-function base64URL(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-function sha256(plain) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain)); }
-async function pkceChallenge(verifier) { return base64URL(await sha256(verifier)); }
-function randomString(len) { return base64URL(crypto.getRandomValues(new Uint8Array(len))); }
-
 function useGitHubAuth() {
   const [user, setUser] = useLocalStorage('tdg-gh-user', null);
-  const [authStatus, setAuthStatus] = useState(null); // null | 'processing' | 'error'
 
-  // Handle OAuth callback — check immediately, not just in useEffect
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const hasCode = !!code;
-
+  // Listen for giscus session events via postMessage
   useEffect(() => {
-    if (!code) return;
-    // Don't check `user` here — just process the code regardless
-    const verifier = sessionStorage.getItem('tdg-pkce-verifier');
-    if (!verifier) {
-      // Clean URL even if no verifier (stale code)
-      const url = new URL(window.location);
-      url.searchParams.delete('code'); url.searchParams.delete('state');
-      window.history.replaceState({}, '', url);
-      return;
-    }
-    sessionStorage.removeItem('tdg-pkce-verifier');
-    setAuthStatus('processing');
-
-    (async () => {
-      try {
-        // Step 1: Exchange code for token via Cloudflare Worker
-        const tokenRes = await fetch(OAUTH_PROXY, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: GITHUB_CLIENT_ID, code,
-            redirect_uri: (window.location.origin + BASE).replace(/\/$/, ''),
-            code_verifier: verifier
-          })
-        });
-        const tokenData = await tokenRes.json();
-        if (tokenData.error) throw new Error(tokenData.error_description || tokenData.error);
-
-        // Step 2: Fetch user info (GitHub API supports CORS)
-        const userRes = await fetch(GITHUB_USER_URL, {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-        });
-        const userData = await userRes.json();
-        if (userData.message) throw new Error(userData.message);
-
-        // Step 3: Save user
-        setUser({
-          login: userData.login, name: userData.name || userData.login,
-          avatar: userData.avatar_url, isAdmin: userData.login === 'xiao-he-he',
-          token: tokenData.access_token
-        });
-        setAuthStatus(null);
-
-        // Clean URL
-        const url = new URL(window.location);
-        url.searchParams.delete('code'); url.searchParams.delete('state');
-        window.history.replaceState({}, '', url);
-      } catch (err) {
-        console.error('OAuth failed:', err);
-        setAuthStatus('error');
-        // Clean URL after 3s
-        setTimeout(() => {
-          const url = new URL(window.location);
-          url.searchParams.delete('code'); url.searchParams.delete('state');
-          window.history.replaceState({}, '', url);
-          setAuthStatus(null);
-        }, 3000);
+    const onMsg = (e) => {
+      if (e.origin !== 'https://giscus.app') return;
+      const d = e.data?.giscus;
+      if (d?.session?.login) {
+        const s = d.session;
+        setUser({ login: s.login, name: s.name || s.login, avatar: s.avatarUrl || `https://github.com/${s.login}.png`, isAdmin: s.login === 'xiao-he-he' });
       }
-    })();
-  }, []); // Run once on mount
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
-  const login = async () => {
-    const verifier = randomString(64);
-    sessionStorage.setItem('tdg-pkce-verifier', verifier);
-    const challenge = await pkceChallenge(verifier);
-    const redirectUri = (window.location.origin + BASE).replace(/\/$/, '');
-    window.location.href = `${GITHUB_AUTH_URL}?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user&state=tdg&code_challenge=${challenge}&code_challenge_method=S256`;
-  };
-
+  // Login = go to forum page where giscus handles GitHub login natively
+  const login = () => { go('forum'); };
   const logout = () => setUser(null);
 
-  return { user, authStatus, login, logout };
+  return { user, login, logout };
 }
 
 /* ============================================================
@@ -672,7 +600,7 @@ function TopNav({ route, user, onLogin, onLogout }) {
             <span>{user.login}</span>
           </button>
         ) : (
-          <button onClick={onLogin}><Lock size={15} />GitHub 登录</button>
+          <button onClick={onLogin} title="前往论坛通过 giscus 登录"><User size={15} />登录</button>
         )}
       </div>
       <button className="mobile-toggle" onClick={() => setOpen(v => !v)} aria-label="导航菜单">{open ? <X size={18} /> : <ChevronRight size={18} />}</button>
@@ -1128,13 +1056,11 @@ function MusicPlayer({ tracks }) {
 function App() {
   const { route, sub } = useRoute();
   const { data, loading } = useContent();
-  const { user, authStatus, login, logout } = useGitHubAuth();
+  const { user, login, logout } = useGitHubAuth();
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
 
   const page = useMemo(() => {
-    if (authStatus === 'processing') return <div className="loading">登录中，请稍候…</div>;
-    if (authStatus === 'error') return <div className="loading">登录失败，请重试。<br/><button className="ghost-action small" onClick={() => { window.location.href = window.location.origin + BASE; }} style={{marginTop:16}}>返回首页</button></div>;
     if (loading) return <div className="loading">载入中</div>;
     const props = { data };
     switch (activeRoute) {
