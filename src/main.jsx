@@ -16,22 +16,27 @@ import './styles.css';
 gsap.registerPlugin(ScrollTrigger);
 
 /* ============================================================
+   BASE PATH — works in dev (/) and GitHub Pages (/The-Dream-of-Game/)
+   ============================================================ */
+const BASE = import.meta.env.BASE_URL;
+
+/* ============================================================
    CONTENT CONFIG
    ============================================================ */
 const contentFiles = {
-  archive: '/content/archive/highlights.json',
-  knowledge: '/content/knowledge/documents.json',
-  events: '/content/events/events.json',
-  forum: '/content/forum/boards.json',
-  media: '/content/media/videos.json',
-  music: '/content/music/tracks.json',
-  members: '/content/members/members.json',
-  projects: '/content/projects/projects.json',
-  resources: '/content/resources/resources.json',
-  tools: '/content/tools/ai-tools.json',
-  stats: '/content/site/stats.json',
-  integrations: '/content/integrations/feishu.json',
-  giscus: '/content/forum/giscus.json'
+  archive: `${BASE}content/archive/highlights.json`,
+  knowledge: `${BASE}content/knowledge/documents.json`,
+  events: `${BASE}content/events/events.json`,
+  forum: `${BASE}content/forum/boards.json`,
+  media: `${BASE}content/media/videos.json`,
+  music: `${BASE}content/music/tracks.json`,
+  members: `${BASE}content/members/members.json`,
+  projects: `${BASE}content/projects/projects.json`,
+  resources: `${BASE}content/resources/resources.json`,
+  tools: `${BASE}content/tools/ai-tools.json`,
+  stats: `${BASE}content/site/stats.json`,
+  integrations: `${BASE}content/integrations/feishu.json`,
+  giscus: `${BASE}content/forum/giscus.json`
 };
 
 const routeMap = { home: '首页', archive: '档案', knowledge: '文章', events: '活动', forum: '论坛', media: '视频', music: '音乐', resources: '资源', admin: '后台' };
@@ -49,6 +54,9 @@ const navItems = [
 ];
 
 const emptyData = { archive:[], knowledge:[], events:[], forum:[], media:[], music:[], members:[], projects:[], resources:[], tools:[], stats:[], integrations:{links:[]}, giscus:{} };
+
+// Helper: prepend BASE to internal paths, leave external URLs alone
+const asset = (path) => (!path || path.startsWith('http') ? path : `${BASE}${path.replace(/^\//, '')}`);
 
 /* ============================================================
    ROUTING
@@ -85,6 +93,90 @@ function useLocalStorage(key, iv) {
   const [v, sv] = useState(() => { try { return JSON.parse(localStorage.getItem(key)) ?? iv; } catch { return iv; } });
   useEffect(() => localStorage.setItem(key, JSON.stringify(v)), [key, v]);
   return [v, sv];
+}
+
+/* ============================================================
+   GITHUB OAUTH — PKCE flow, no server needed
+   ============================================================ */
+const GITHUB_CLIENT_ID = 'Ov23lisHSUn5o5ECAyvL';
+const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize';
+const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+const GITHUB_USER_URL = 'https://api.github.com/user';
+
+function base64URL(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function sha256(plain) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain)); }
+async function pkceChallenge(verifier) { return base64URL(await sha256(verifier)); }
+function randomString(len) { return base64URL(crypto.getRandomValues(new Uint8Array(len))); }
+
+function useGitHubAuth() {
+  const [user, setUser] = useLocalStorage('tdg-gh-user', null);
+  const [loading, setLoading] = useState(false);
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code || user) return;
+
+    const verifier = sessionStorage.getItem('tdg-pkce-verifier');
+    if (!verifier) return;
+    sessionStorage.removeItem('tdg-pkce-verifier');
+
+    setLoading(true);
+    (async () => {
+      try {
+        // Exchange code for token
+        const tokenRes = await fetch(GITHUB_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            client_id: GITHUB_CLIENT_ID,
+            code,
+            redirect_uri: window.location.origin + BASE,
+            code_verifier: verifier
+          })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) throw new Error(tokenData.error_description);
+
+        // Fetch user info
+        const userRes = await fetch(GITHUB_USER_URL, {
+          headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
+        });
+        const userData = await userRes.json();
+
+        const ghUser = {
+          login: userData.login,
+          name: userData.name || userData.login,
+          avatar: userData.avatar_url,
+          isAdmin: userData.login === 'xiao-he-he',
+          token: tokenData.access_token
+        };
+        setUser(ghUser);
+
+        // Clean URL
+        const url = new URL(window.location);
+        url.searchParams.delete('code');
+        url.searchParams.delete('state');
+        window.history.replaceState({}, '', url);
+      } catch (err) {
+        console.error('GitHub OAuth error:', err);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const login = async () => {
+    const verifier = randomString(64);
+    sessionStorage.setItem('tdg-pkce-verifier', verifier);
+    const challenge = await pkceChallenge(verifier);
+    const redirectUri = window.location.origin + BASE;
+    window.location.href = `${GITHUB_AUTH_URL}?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user&state=tdg&code_challenge=${challenge}&code_challenge_method=S256`;
+  };
+
+  const logout = () => setUser(null);
+
+  return { user, loading, login, logout };
 }
 
 /* ============================================================
@@ -559,7 +651,14 @@ function TopNav({ route, user, onLogin, onLogout }) {
         })}
       </nav>
       <div className="account-pill">
-        {user ? <button onClick={onLogout}><User size={15} />{user.name}</button> : <button onClick={onLogin}><Lock size={15} />登录</button>}
+        {user ? (
+          <button onClick={onLogout} className="gh-user-btn">
+            <img src={user.avatar} alt="" className="gh-avatar" />
+            <span>{user.login}</span>
+          </button>
+        ) : (
+          <button onClick={onLogin}><Lock size={15} />GitHub 登录</button>
+        )}
       </div>
       <button className="mobile-toggle" onClick={() => setOpen(v => !v)} aria-label="导航菜单">{open ? <X size={18} /> : <ChevronRight size={18} />}</button>
     </header>
@@ -608,7 +707,7 @@ function HomePage({ data }) {
     <main>
       <section className="hero">
         <div className="opening-mask" />
-        <div className="hero-bg" style={{ backgroundImage: 'linear-gradient(100deg, rgba(8,12,18,0.92), rgba(8,12,18,0.48) 42%, rgba(8,12,18,0.18)), linear-gradient(180deg, rgba(8,12,18,0.02), var(--bg) 94%), url("/概念设计图/背景图.png")' }} />
+        <div className="hero-bg" style={{ backgroundImage: `linear-gradient(100deg, rgba(8,12,18,0.92), rgba(8,12,18,0.48) 42%, rgba(8,12,18,0.18)), linear-gradient(180deg, rgba(8,12,18,0.02), var(--bg) 94%), url("${BASE}概念设计图/背景图.png")` }} />
         <div className="hero-inner">
           <div className="hero-copy">
             <span className="hero-meta">梦游室官方网站 / 游戏创作社群</span>
@@ -693,6 +792,7 @@ function PdfReader({ doc, onClose }) {
   const backdropRef = useRef(null);
   const [size, setSize] = useState('normal'); // 'normal' | 'large' | 'fullscreen' | 'compact'
   const [fs, setFs] = useState(false);
+  const pdfUrl = asset(doc.url);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') { if (fs) { setFs(false); setSize('normal'); } else onClose(); } };
@@ -739,12 +839,12 @@ function PdfReader({ doc, onClose }) {
             <button className="icon-button" onClick={onClose} aria-label="关闭"><X size={16} /></button>
           </div>
         </header>
-        <object data={`${doc.url}#view=FitH&toolbar=0`} type="application/pdf" style={{ width: '100%', height: '100%', border: 0, background: '#fff' }}>
-          <iframe title={doc.title} src={`${doc.url}#view=FitH&toolbar=0&navpanes=0`} style={{ width: '100%', height: '100%', border: 0, background: '#fff' }} loading="lazy">
-            <div className="pdf-fallback"><FileText size={48} /><p>您的浏览器不支持内嵌 PDF 阅读。请下载文件后使用本地阅读器查看。</p><a className="primary-action small" href={doc.url} download><Download size={15} /> 下载 PDF</a></div>
+        <object data={`${pdfUrl}#view=FitH&toolbar=0`} type="application/pdf" style={{ width: '100%', height: '100%', border: 0, background: '#fff' }}>
+          <iframe title={doc.title} src={`${pdfUrl}#view=FitH&toolbar=0&navpanes=0`} style={{ width: '100%', height: '100%', border: 0, background: '#fff' }} loading="lazy">
+            <div className="pdf-fallback"><FileText size={48} /><p>您的浏览器不支持内嵌 PDF 阅读。请下载文件后使用本地阅读器查看。</p><a className="primary-action small" href={pdfUrl} download><Download size={15} /> 下载 PDF</a></div>
           </iframe>
         </object>
-        <footer><span>如无法加载，可下载后使用本地阅读器查看。</span><a href={doc.url} download><Download size={14} /> 下载</a></footer>
+        <footer><span>如无法加载，可下载后使用本地阅读器查看。</span><a href={pdfUrl} download><Download size={14} /> 下载</a></footer>
       </section>
     </div>
   );
@@ -774,7 +874,7 @@ function ForumPage({ data, sub }) {
     <PageShell eyebrow="论坛 FORUM" title={activeBoard ? `${activeBoard.name}` : '社团论坛'}>
       <section className="content-section animated-section">
         <div className="forum-sub-nav">
-          <button className={!sub ? 'active' : ''} onClick={() => go('forum')}>全部讨论</button>
+          <button className={!sub ? 'active' : ''} onClick={() => go('forum')}>所有帖子</button>
           {boards.map((board) => (
             <button key={board.code} className={sub === board.code.toLowerCase() ? 'active' : ''} onClick={() => go(`forum/${board.code.toLowerCase()}`)}>
               {board.code} {board.name}
@@ -786,14 +886,14 @@ function ForumPage({ data, sub }) {
             <small>{activeBoard.code}</small>
             <h3>{activeBoard.name}</h3>
             <p>{activeBoard.description}</p>
-            <footer>{activeBoard.threads ? `${activeBoard.threads} 条主题` : '暂无主题'}</footer>
+            <footer>{activeBoard.threads ? `${activeBoard.threads} 条帖子` : '暂无帖子'}</footer>
           </article>
         ) : (
           boards.length ? (
             <div className="ak-grid three">
               {boards.map((board) => (
                 <button className="preview-link" key={board.name} onClick={() => go(`forum/${board.code.toLowerCase()}`)}>
-                  <small>{board.code}</small><strong>{board.name}</strong><p>{board.description}</p><footer>{board.threads ? `${board.threads} 条主题` : '暂无主题'}</footer><ChevronRight size={18} />
+                  <small>{board.code}</small><strong>{board.name}</strong><p>{board.description}</p><footer>{board.threads ? `${board.threads} 条帖子` : '暂无帖子'}</footer><ChevronRight size={18} />
                 </button>
               ))}
             </div>
@@ -812,15 +912,15 @@ function GiscusPanel({ config, board }) {
     target.innerHTML = '';
     const script = document.createElement('script');
     script.src = 'https://giscus.app/client.js'; script.async = true; script.crossOrigin = 'anonymous';
-    const attrs = { repo: config.repo, 'repo-id': config.repoId, category: config.category, 'category-id': config.categoryId, mapping: config.mapping || 'pathname', reactionsEnabled: '1', emitMetadata: '0', theme: config.theme || 'transparent_dark', lang: 'zh-CN' };
+    const attrs = { repo: config.repo, 'repo-id': config.repoId, category: config.category, 'category-id': config.categoryId, mapping: config.mapping || 'pathname', 'reactions-enabled': config.reactionsEnabled || '1', 'emit-metadata': config.emitMetadata || '0', 'input-position': config.inputPosition || 'top', theme: config.theme || 'preferred_color_scheme', lang: 'zh-CN' };
     if (board) { attrs.term = board.name; attrs.mapping = 'specific'; }
     Object.entries(attrs).forEach(([k, v]) => { if (v) script.setAttribute(`data-${k}`, v); });
     target.appendChild(script);
   }, [config, board]);
   return (
     <section className="content-section animated-section">
-      <span className="kicker"><GradientText>讨论区 COMMENTS</GradientText></span>
-      <h2 className="section-title">{board ? `${board.name} 讨论` : '全部讨论'}</h2>
+      <span className="kicker"><GradientText>发帖区 POSTS</GradientText></span>
+      <h2 className="section-title">{board ? `${board.name} 发帖区` : '全部帖子'}</h2>
       <div className="giscus-panel ak-card" ref={ref}>{!config?.repo && <p>讨论系统尚未配置。</p>}</div>
     </section>
   );
@@ -874,9 +974,9 @@ function MusicPage({ data }) {
 function AdminPage({ data, user, onLogin }) {
   return (
     <PageShell eyebrow="后台 ADMIN" title="管理后台">
-      {!user ? (
+      {!user?.isAdmin ? (
         <section className="content-section animated-section">
-          <article className="admin-card" style={{ textAlign: 'center' }}><Lock size={26} style={{ marginBottom: 16 }} /><h3>需要登录</h3><p>后台用于维护成员、权限、飞书链接和内容索引。</p><button className="primary-action small" onClick={onLogin}>登录后台</button></article>
+          <article className="admin-card" style={{ textAlign: 'center' }}><Lock size={26} style={{ marginBottom: 16 }} /><h3>需要管理员权限</h3><p>仅社团管理员 (xiao-he-he) 可访问后台。请使用 GitHub 登录。</p>{!user && <button className="primary-action small" onClick={onLogin}>GitHub 登录</button>}</article>
         </section>
       ) : (
         <>
@@ -967,7 +1067,7 @@ function MusicPlayer({ tracks }) {
       )}
 
       <aside className="floating-player">
-        <audio ref={audioRef} src={current?.src} loop={repeat} onEnded={next} preload="auto" />
+        <audio ref={audioRef} src={asset(current?.src)} loop={repeat} onEnded={next} preload="auto" />
         <div className="player-info">
           <Disc3 className={playing ? 'spin' : ''} size={18} />
           <div><small>全局音乐</small><strong>{current?.title ?? '暂无曲目'}</strong></div>
@@ -1000,12 +1100,9 @@ function MusicPlayer({ tracks }) {
 function App() {
   const { route, sub } = useRoute();
   const { data, loading } = useContent();
-  const [user, setUser] = useLocalStorage('tdg-user', null);
+  const { user, login, logout } = useGitHubAuth();
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
-
-  const login = () => setUser({ name: '管理员', role: '超级管理员' });
-  const logout = () => setUser(null);
 
   const page = useMemo(() => {
     if (loading) return <div className="loading">载入中</div>;

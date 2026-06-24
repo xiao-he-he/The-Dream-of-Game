@@ -5,6 +5,9 @@
   "category": "General",
   "categoryId": "DIC_kwDOTDpW4c4C_yBL",
   "mapping": "pathname",
+  "reactionsEnabled": "1",
+  "emitMetadata": "0",
+  "inputPosition": "top",
   "theme": "preferred_color_scheme",
   "lang": "zh-CN"
 }
