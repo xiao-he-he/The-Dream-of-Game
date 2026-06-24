@@ -1,0 +1,26 @@
+[
+  {
+    "name": "社团官网",
+    "status": "开发中",
+    "description": "面向社团公开展示、知识整理、论坛评论和内容归档的官方网站。",
+    "owner": "梦游室项目组",
+    "stack": ["Unity", "Shader", "UI"],
+    "progress": 62
+  },
+  {
+    "name": "知识库整理计划",
+    "status": "进行中",
+    "description": "整理游戏开发、关卡设计、技术美术和 AI 工具相关资料。",
+    "owner": "网站组",
+    "stack": ["React", "Framer Motion"],
+    "progress": 44
+  },
+  {
+    "name": "活动归档计划",
+    "status": "筹备中",
+    "description": "统一保存分享会、Game Jam、项目招募和作品展示记录。",
+    "owner": "概念设计组",
+    "stack": ["Concept", "TA"],
+    "progress": 28
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ChatGPT",
+    "category": "对话 / 写作 / 编程",
+    "url": "https://chatgpt.com"
+  },
+  {
+    "name": "Claude",
+    "category": "长文本 / 分析",
+    "url": "https://claude.ai"
+  },
+  {
+    "name": "Gemini",
+    "category": "多模态 / 搜索",
+    "url": "https://gemini.google.com"
+  },
+  {
+    "name": "Cursor",
+    "category": "AI IDE",
+    "url": "https://cursor.com"
+  },
+  {
+    "name": "Codex",
+    "category": "代码代理",
+    "url": "https://openai.com/codex"
+  },
+  {
+    "name": "ComfyUI",
+    "category": "图像工作流",
+    "url": "https://github.com/comfyanonymous/ComfyUI"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "_comment": "推送到 GitHub 后，在此填写你的仓库信息即可启用 giscus 评论系统。详见 https://giscus.app",
+  "repo": "",
+  "repoId": "",
+  "category": "",
+  "categoryId": "",
+  "mapping": "pathname",
+  "theme": "transparent_dark"
+}

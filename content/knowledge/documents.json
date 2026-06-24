@@ -1,0 +1,24 @@
+[
+  {
+    "id": "level-speaks",
+    "type": "feishu",
+    "title": "假如关卡会说话",
+    "summary": "围绕关卡空间、玩家路径和环境叙事展开的设计笔记。",
+    "author": "梦游室档案组",
+    "updatedAt": "2026-06-24",
+    "category": "关卡设计",
+    "tags": ["关卡设计", "叙事", "飞书"],
+    "url": "https://jcnm5t087km2.feishu.cn/wiki/Sn15w3rkCikYA8kS6BwcmH0Xn1f"
+  },
+  {
+    "id": "space-exploration",
+    "type": "pdf",
+    "title": "如何塑造游戏中的空间探索",
+    "summary": "从空间结构、引导方式和探索节奏分析游戏中的空间体验塑造。",
+    "author": "梦游室档案组",
+    "updatedAt": "2026-06-24",
+    "category": "游戏开发",
+    "tags": ["空间探索", "游戏设计", "PDF"],
+    "url": "/文章/如何塑造游戏中的空间探索.pdf"
+  }
+]

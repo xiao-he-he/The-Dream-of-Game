@@ -1,0 +1,26 @@
+[
+  {
+    "level": "ROLE 00",
+    "role": "游客",
+    "description": "可浏览公开页面、知识库公开卡片、视频和活动公告。",
+    "permissions": ["浏览"]
+  },
+  {
+    "level": "ROLE 01",
+    "role": "成员",
+    "description": "可参与论坛、收藏资料、查看社团内部资源。",
+    "permissions": ["发帖", "收藏", "报名"]
+  },
+  {
+    "level": "ROLE 02",
+    "role": "部长",
+    "description": "可维护活动、项目、资源和内容归档。",
+    "permissions": ["内容管理", "活动管理"]
+  },
+  {
+    "level": "ROLE 03",
+    "role": "管理员",
+    "description": "可管理用户、论坛、资源与飞书链接。",
+    "permissions": ["用户管理", "权限管理", "链接管理"]
+  }
+]

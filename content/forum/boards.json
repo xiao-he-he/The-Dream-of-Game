@@ -1,0 +1,38 @@
+[
+  {
+    "code": "DEV",
+    "name": "游戏开发",
+    "description": "引擎、玩法、系统设计、工程问题与开发日志。",
+    "threads": 0
+  },
+  {
+    "code": "TECH",
+    "name": "技术交流",
+    "description": "Unity、UE5、工具链、性能优化与疑难排查。",
+    "threads": 0
+  },
+  {
+    "code": "ART",
+    "name": "美术设计",
+    "description": "概念设计、UI、动效、技术美术与资产生产。",
+    "threads": 0
+  },
+  {
+    "code": "TEAM",
+    "name": "项目招募",
+    "description": "寻找策划、程序、美术、音频与制作协作者。",
+    "threads": 0
+  },
+  {
+    "code": "DROP",
+    "name": "资源分享",
+    "description": "课程、工具、插件、模板和公开学习资料。",
+    "threads": 0
+  },
+  {
+    "code": "CHAT",
+    "name": "闲聊区",
+    "description": "游戏体验、灵感碎片和不适合归类的信号。",
+    "threads": 0
+  }
+]
