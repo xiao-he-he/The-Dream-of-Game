@@ -1,9 +1,8 @@
-// Cloudflare Worker — GitHub OAuth 代理
-// 部署: npx wrangler deploy (免费, 无需信用卡)
-
+// Cloudflare Worker — GitHub OAuth token proxy
 export default {
   async fetch(request) {
-    // CORS preflight
+    const url = new URL(request.url);
+
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         headers: {
@@ -14,14 +13,14 @@ export default {
       });
     }
 
-    const url = new URL(request.url);
-
-    // POST /token → GitHub OAuth token exchange
     if (url.pathname === '/token' && request.method === 'POST') {
       const body = await request.text();
       const ghRes = await fetch('https://github.com/login/oauth/access_token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body
       });
       const data = await ghRes.text();
@@ -33,7 +32,7 @@ export default {
       });
     }
 
-    return new Response('TDG OAuth Proxy — POST /token', {
+    return new Response('TDG OAuth Proxy', {
       headers: { 'Access-Control-Allow-Origin': '*' }
     });
   }

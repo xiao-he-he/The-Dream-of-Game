@@ -1132,11 +1132,9 @@ function App() {
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
 
-  // OAuth callback processing state
-  if (authStatus === 'processing') return <div className="loading">登录中，请稍候…</div>;
-  if (authStatus === 'error') return <div className="loading">登录失败，请重试。<br/><button className="ghost-action small" onClick={() => { const url = new URL(window.location); url.searchParams.delete('code'); url.searchParams.delete('state'); window.history.replaceState({}, '', url); window.location.reload(); }} style={{marginTop:16}}>返回首页</button></div>;
-
   const page = useMemo(() => {
+    if (authStatus === 'processing') return <div className="loading">登录中，请稍候…</div>;
+    if (authStatus === 'error') return <div className="loading">登录失败，请重试。<br/><button className="ghost-action small" onClick={() => { window.location.href = window.location.origin + BASE; }} style={{marginTop:16}}>返回首页</button></div>;
     if (loading) return <div className="loading">载入中</div>;
     const props = { data };
     switch (activeRoute) {
