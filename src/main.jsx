@@ -112,12 +112,27 @@ function useSupabaseAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Ensure profile exists (first-time login)
+  const ensureProfile = async (u) => {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+    if (!profile) {
+      // First login — create profile
+      await supabase.from('profiles').insert({
+        id: u.id,
+        username: u.user_metadata?.user_name || 'user',
+        display_name: u.user_metadata?.full_name || u.user_metadata?.user_name || u.email,
+        avatar_url: u.user_metadata?.avatar_url || ''
+      });
+      return { is_admin: false };
+    }
+    return profile;
+  };
+
   useEffect(() => {
-    // Check existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         const u = session.user;
-        supabase.from('profiles').select('*').eq('id', u.id).single().then(({ data: profile }) => {
+        ensureProfile(u).then((profile) => {
           setUser({
             id: u.id, login: u.user_metadata?.user_name || u.email,
             name: u.user_metadata?.full_name || u.user_metadata?.user_name,
@@ -128,11 +143,10 @@ function useSupabaseAuth() {
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const u = session.user;
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+        const profile = await ensureProfile(u);
         setUser({
           id: u.id, login: u.user_metadata?.user_name || u.email,
           name: u.user_metadata?.full_name || u.user_metadata?.user_name,
