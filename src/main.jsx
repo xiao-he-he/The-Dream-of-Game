@@ -1,20 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import {
-  Color, Mesh, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer
-} from 'three';
-import {
-  Archive, BookOpen, CalendarDays, ChevronRight, Disc3, Download, Expand, ExternalLink,
-  FileText, Film, Home, LayoutDashboard, Lock, Maximize, MessageSquare, Minimize,
-  Music2, Pause, Play, Repeat, Search, Shuffle, SkipBack, SkipForward, Upload, User, Volume2, X, ZoomIn, ZoomOut, ListMusic, ClipboardCopy, ImageIcon
+  Bell, BookOpen, CalendarDays, ChevronRight, Disc3, ExternalLink,
+  FileText, Film, Heart, Home, MessageSquare,
+  Music2, Pause, Play, Repeat, Search, Shuffle, SkipBack, SkipForward, User, Volume2, X, ListMusic
 } from 'lucide-react';
 import './styles.css';
-
-gsap.registerPlugin(ScrollTrigger);
 
 /* ============================================================
    BASE PATH — works in dev (/) and GitHub Pages (/The-Dream-of-Game/)
@@ -34,7 +26,6 @@ const STORAGE_BUCKET = 'forum-images';
    CONTENT CONFIG
    ============================================================ */
 const contentFiles = {
-  archive: `${BASE}content/archive/highlights.json`,
   knowledge: `${BASE}content/knowledge/documents.json`,
   events: `${BASE}content/events/events.json`,
   forum: `${BASE}content/forum/boards.json`,
@@ -49,21 +40,20 @@ const contentFiles = {
   giscus: `${BASE}content/forum/giscus.json`
 };
 
-const routeMap = { home: '首页', archive: '档案', knowledge: '文章', events: '活动', forum: '论坛', media: '视频', music: '音乐', resources: '资源', admin: '后台' };
+const routeMap = { home: '首页', knowledge: '文章', events: '活动', forum: '论坛', media: '视频', music: '音乐', resources: '资源', profile: '个人主页' };
 
 const navItems = [
   { route: 'home', label: '首页', sub: 'HOME', icon: Home },
-  { route: 'archive', label: '档案', sub: 'ARCHIVE', icon: Archive },
   { route: 'knowledge', label: '文章', sub: 'ARTICLES', icon: BookOpen },
   { route: 'events', label: '活动', sub: 'EVENTS', icon: CalendarDays },
   { route: 'forum', label: '论坛', sub: 'FORUM', icon: MessageSquare },
   { route: 'media', label: '视频', sub: 'MEDIA', icon: Film },
   { route: 'music', label: '音乐', sub: 'MUSIC', icon: Music2 },
   { route: 'resources', label: '资源', sub: 'RESOURCES', icon: FileText },
-  { route: 'admin', label: '后台', sub: 'ADMIN', icon: LayoutDashboard }
+  { route: 'profile', label: '个人', sub: 'PROFILE', icon: User }
 ];
 
-const emptyData = { archive:[], knowledge:[], events:[], forum:[], media:[], music:[], members:[], projects:[], resources:[], tools:[], stats:[], integrations:{links:[]}, giscus:{} };
+const emptyData = { knowledge:[], events:[], forum:[], media:[], music:[], members:[], projects:[], resources:[], tools:[], stats:[], integrations:{links:[]}, giscus:{} };
 
 // Helper: prepend BASE to internal paths, leave external URLs alone
 const asset = (path) => (!path || path.startsWith('http') ? path : `${BASE}${path.replace(/^\//, '')}`);
@@ -97,6 +87,18 @@ function useContent() {
     return () => { alive = false; };
   }, []);
   return { data, loading };
+}
+
+function useMobileMode() {
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 760px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const sync = () => setMobile(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+  return mobile;
 }
 
 function useLocalStorage(key, iv) {
@@ -183,10 +185,11 @@ function useSupabaseAuth() {
    CLICK SPARK — 鼠标动效.md
    sparkColor="#fff" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}
    ============================================================ */
-function ClickSpark({ sparkColor = '#EF4444', sparkSize = 20, sparkRadius = 30, sparkCount = 10, duration = 400, children }) {
+function ClickSpark({ sparkColor = '#EF4444', sparkSize = 20, sparkRadius = 30, sparkCount = 10, duration = 400, disabled = false, children }) {
   const canvasRef = useRef(null);
   const sparksRef = useRef([]);
   useEffect(() => {
+    if (disabled) return undefined;
     const canvas = canvasRef.current;
     const parent = canvas?.parentElement;
     if (!canvas || !parent) return;
@@ -216,16 +219,17 @@ function ClickSpark({ sparkColor = '#EF4444', sparkSize = 20, sparkRadius = 30, 
     resize(); frame = requestAnimationFrame(draw);
     window.addEventListener('resize', resize);
     return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', resize); };
-  }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration]);
+  }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, disabled]);
   const onClick = useCallback((e) => {
+    if (disabled) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const now = performance.now();
     sparksRef.current.push(...Array.from({ length: sparkCount }, (_, i) => ({
       x: e.clientX - rect.left, y: e.clientY - rect.top,
       startTime: now, angle: (2 * Math.PI * i) / sparkCount
     })));
-  }, [sparkCount]);
-  return <div className="click-spark" onClick={onClick}><canvas ref={canvasRef} />{children}</div>;
+  }, [sparkCount, disabled]);
+  return <div className="click-spark" onClick={disabled ? undefined : onClick}>{!disabled && <canvas ref={canvasRef} />}{children}</div>;
 }
 
 /* ============================================================
@@ -330,9 +334,9 @@ function PixelSnow({
   const rendererRef = useRef(null);
   const materialRef = useRef(null);
   const rtRef = useRef(null);
+  const threeRef = useRef(null);
 
   const vv = useMemo(() => variant === 'round' ? 1.0 : variant === 'snowflake' ? 2.0 : 0.0, [variant]);
-  const cv = useMemo(() => { const c = new Color(color); return new Vector3(c.r, c.g, c.b); }, [color]);
 
   const handleResize = useCallback(() => {
     if (rtRef.current) clearTimeout(rtRef.current);
@@ -352,43 +356,63 @@ function PixelSnow({
 
   useEffect(() => {
     const c = containerRef.current; if (!c) return;
-    const scene = new Scene();
-    const cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const renderer = new WebGLRenderer({ antialias: false, alpha: true, premultipliedAlpha: false, powerPreference: 'high-performance', stencil: false, depth: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(c.offsetWidth, c.offsetHeight);
-    renderer.setClearColor(0x000000, 0);
-    c.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    let disposed = false;
+    let renderer = null;
+    let material = null;
+    let geometry = null;
 
-    const mat = new ShaderMaterial({
-      vertexShader: PV, fragmentShader: PF,
-      uniforms: {
-        uTime: { value: 0 }, uResolution: { value: new Vector2(c.offsetWidth, c.offsetHeight) },
-        uFlakeSize: { value: flakeSize }, uMinFlakeSize: { value: minFlakeSize },
-        uPixelResolution: { value: pixelResolution }, uSpeed: { value: speed },
-        uDepthFade: { value: depthFade }, uFarPlane: { value: farPlane },
-        uColor: { value: cv.clone() }, uBrightness: { value: brightness },
-        uGamma: { value: gamma }, uDensity: { value: density },
-        uVariant: { value: vv }, uDirection: { value: (direction * Math.PI) / 180 }
-      }, transparent: true
+    import('three').then((three) => {
+      if (disposed || !containerRef.current) return;
+      const { Color, Mesh, OrthographicCamera, PlaneGeometry, Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer } = three;
+      threeRef.current = { Color };
+      const scene = new Scene();
+      const cam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      renderer = new WebGLRenderer({ antialias: false, alpha: true, premultipliedAlpha: false, powerPreference: 'high-performance', stencil: false, depth: false });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(c.offsetWidth, c.offsetHeight);
+      renderer.setClearColor(0x000000, 0);
+      c.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
+
+      const initialColor = new Color(color);
+      material = new ShaderMaterial({
+        vertexShader: PV, fragmentShader: PF,
+        uniforms: {
+          uTime: { value: 0 }, uResolution: { value: new Vector2(c.offsetWidth, c.offsetHeight) },
+          uFlakeSize: { value: flakeSize }, uMinFlakeSize: { value: minFlakeSize },
+          uPixelResolution: { value: pixelResolution }, uSpeed: { value: speed },
+          uDepthFade: { value: depthFade }, uFarPlane: { value: farPlane },
+          uColor: { value: new Vector3(initialColor.r, initialColor.g, initialColor.b) }, uBrightness: { value: brightness },
+          uGamma: { value: gamma }, uDensity: { value: density },
+          uVariant: { value: vv }, uDirection: { value: (direction * Math.PI) / 180 }
+        }, transparent: true
+      });
+      materialRef.current = material;
+      geometry = new PlaneGeometry(2, 2);
+      scene.add(new Mesh(geometry, material));
+      window.addEventListener('resize', handleResize);
+
+      const st = performance.now();
+      const anim = () => {
+        animRef.current = requestAnimationFrame(anim);
+        if (visibleRef.current && material && renderer) {
+          material.uniforms.uTime.value = (performance.now() - st) * 0.001;
+          renderer.render(scene, cam);
+        }
+      };
+      anim();
     });
-    materialRef.current = mat;
-    scene.add(new Mesh(new PlaneGeometry(2, 2), mat));
-    window.addEventListener('resize', handleResize);
 
-    const st = performance.now();
-    const anim = () => {
-      animRef.current = requestAnimationFrame(anim);
-      if (visibleRef.current) { mat.uniforms.uTime.value = (performance.now() - st) * 0.001; renderer.render(scene, cam); }
-    };
-    anim();
     return () => {
+      disposed = true;
       cancelAnimationFrame(animRef.current); window.removeEventListener('resize', handleResize);
       if (rtRef.current) clearTimeout(rtRef.current);
-      if (c.contains(renderer.domElement)) c.removeChild(renderer.domElement);
-      renderer.dispose(); renderer.forceContextLoss(); mat.dispose();
-      rendererRef.current = null; materialRef.current = null;
+      if (renderer?.domElement && c.contains(renderer.domElement)) c.removeChild(renderer.domElement);
+      geometry?.dispose();
+      material?.dispose();
+      renderer?.dispose();
+      renderer?.forceContextLoss();
+      rendererRef.current = null; materialRef.current = null; threeRef.current = null;
     };
   }, [handleResize]);
 
@@ -400,8 +424,12 @@ function PixelSnow({
     m.uniforms.uBrightness.value = brightness; m.uniforms.uGamma.value = gamma;
     m.uniforms.uDensity.value = density; m.uniforms.uVariant.value = vv;
     m.uniforms.uDirection.value = (direction * Math.PI) / 180;
-    m.uniforms.uColor.value.copy(cv);
-  }, [flakeSize, minFlakeSize, pixelResolution, speed, depthFade, farPlane, brightness, gamma, density, vv, direction, cv]);
+    const Color = threeRef.current?.Color;
+    if (Color) {
+      const c = new Color(color);
+      m.uniforms.uColor.value.set(c.r, c.g, c.b);
+    }
+  }, [flakeSize, minFlakeSize, pixelResolution, speed, depthFade, farPlane, brightness, gamma, density, vv, direction, color]);
 
   return <div ref={containerRef} className={`pixel-snow-container ${className}`} style={style} />;
 }
@@ -418,96 +446,33 @@ function GradientText({ children, colors = ['#EAB308', '#FF9FFC', '#B497CF'], sp
   );
 }
 
-/* ============================================================
-   ELASTIC SLIDER — 音量动效.md
-   ============================================================ */
-const MAX_OVERFLOW = 50;
-function decay(value, max) {
-  if (max === 0) return 0;
-  const entry = value / max;
-  return (2 * (1 / (1 + Math.exp(-entry)) - 0.5)) * max;
-}
-
 function ElasticSlider({ defaultValue = 50, startingValue = 0, maxValue = 100, isStepped = false, stepSize = 1, leftIcon, rightIcon, onChange }) {
   const [value, setValue] = useState(defaultValue);
-  const sliderRef = useRef(null);
-  const [region, setRegion] = useState('middle');
-  const clientX = useMotionValue(0);
-  const overflow = useMotionValue(0);
-  const scale = useMotionValue(1);
 
   useEffect(() => { setValue(defaultValue); }, [defaultValue]);
   useEffect(() => { onChange?.(value); }, [value, onChange]);
 
-  useMotionValueEvent(clientX, 'change', latest => {
-    if (sliderRef.current) {
-      const { left, right } = sliderRef.current.getBoundingClientRect();
-      let newValue;
-      if (latest < left) { setRegion('left'); newValue = left - latest; }
-      else if (latest > right) { setRegion('right'); newValue = latest - right; }
-      else { setRegion('middle'); newValue = 0; }
-      overflow.jump(decay(newValue, MAX_OVERFLOW));
-    }
-  });
-
-  const handlePointerMove = e => {
-    if (e.buttons > 0 && sliderRef.current) {
-      const { left, width } = sliderRef.current.getBoundingClientRect();
-      let newValue = startingValue + ((e.clientX - left) / width) * (maxValue - startingValue);
-      if (isStepped) newValue = Math.round(newValue / stepSize) * stepSize;
-      newValue = Math.min(Math.max(newValue, startingValue), maxValue);
-      setValue(newValue); clientX.jump(e.clientX);
-    }
-  };
-
-  const getRangePercentage = () => {
-    const totalRange = maxValue - startingValue;
-    if (totalRange === 0) return 0;
-    return ((value - startingValue) / totalRange) * 100;
-  };
+  const totalRange = maxValue - startingValue;
+  const percentage = totalRange === 0 ? 0 : ((value - startingValue) / totalRange) * 100;
 
   return (
     <div className="elastic-slider">
-      <motion.div
-        onHoverStart={() => animate(scale, 1.2)}
-        onHoverEnd={() => animate(scale, 1)}
-        style={{ scale, opacity: useTransform(scale, [1, 1.2], [0.7, 1]) }}
-        className="elastic-slider-wrap"
-      >
-        <motion.div
-          animate={{ scale: region === 'left' ? [1, 1.4, 1] : 1, transition: { duration: 0.25 } }}
-          style={{ x: useTransform(() => region === 'left' ? -overflow.get() / scale.get() : 0) }}
-        >
-          <span className="elastic-slider-icon">{leftIcon}</span>
-        </motion.div>
-        <div ref={sliderRef} className="elastic-slider-root"
-          onPointerMove={handlePointerMove}
-          onPointerDown={e => { handlePointerMove(e); e.currentTarget.setPointerCapture(e.pointerId); }}
-          onPointerUp={() => animate(overflow, 0, { type: 'spring', bounce: 0.5 })}
-        >
-          <motion.div
-            style={{
-              scaleX: useTransform(() => sliderRef.current ? 1 + overflow.get() / sliderRef.current.getBoundingClientRect().width : 1),
-              scaleY: useTransform(overflow, [0, MAX_OVERFLOW], [1, 0.8]),
-              transformOrigin: useTransform(() => sliderRef.current ? (clientX.get() < sliderRef.current.getBoundingClientRect().left + sliderRef.current.getBoundingClientRect().width / 2 ? 'right' : 'left') : 'left'),
-              height: useTransform(scale, [1, 1.2], [4, 10]),
-              marginTop: useTransform(scale, [1, 1.2], [0, -3]),
-              marginBottom: useTransform(scale, [1, 1.2], [0, -3])
-            }}
-            className="elastic-slider-track-wrap"
-          >
-            <div className="elastic-slider-track">
-              <div className="elastic-slider-range" style={{ width: `${getRangePercentage()}%` }} />
-            </div>
-          </motion.div>
-        </div>
-        <motion.div
-          animate={{ scale: region === 'right' ? [1, 1.4, 1] : 1, transition: { duration: 0.25 } }}
-          style={{ x: useTransform(() => region === 'right' ? overflow.get() / scale.get() : 0) }}
-        >
-          <span className="elastic-slider-icon">{rightIcon}</span>
-        </motion.div>
-      </motion.div>
+      <div className="elastic-slider-wrap">
+        <span className="elastic-slider-icon">{leftIcon}</span>
+        <label className="elastic-slider-root" aria-label="音量">
+          <input
+            className="elastic-slider-native"
+            type="range"
+            min={startingValue}
+            max={maxValue}
+            step={isStepped ? stepSize : 1}
+            value={value}
+            style={{ '--slider-progress': `${percentage}%` }}
+            onChange={(event) => setValue(Number(event.target.value))}
+          />
+        </label>
+        <span className="elastic-slider-icon">{rightIcon}</span>
+      </div>
       <span className="elastic-slider-value">{Math.round(value)}</span>
     </div>
   );
@@ -520,8 +485,15 @@ function useGsapPage(route, loading) {
   useEffect(() => {
     if (loading) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(max-width: 760px)').matches) return;
     let ctx = null;
-    const timer = window.setTimeout(() => {
+    let timer = 0;
+    let cancelled = false;
+    Promise.all([import('gsap'), import('gsap/ScrollTrigger')]).then(([gsapModule, scrollModule]) => {
+      if (cancelled) return;
+      const gsap = gsapModule.default;
+      gsap.registerPlugin(scrollModule.ScrollTrigger);
+      timer = window.setTimeout(() => {
       ctx = gsap.context(() => {
         const isHome = route === 'home';
 
@@ -623,9 +595,10 @@ function useGsapPage(route, loading) {
           }
         }
       });
-    }, 250);
+      }, 250);
+    });
 
-    return () => { clearTimeout(timer); if (ctx) ctx.revert(); };
+    return () => { cancelled = true; clearTimeout(timer); if (ctx) ctx.revert(); };
   }, [route, loading]);
 }
 
@@ -656,7 +629,7 @@ function TopNav({ route, user, onLogin, onLogout }) {
             <span>{user.login}</span>
           </button>
         ) : (
-          <button onClick={onLogin} title="前往论坛通过 giscus 登录"><User size={15} />登录</button>
+          <button onClick={onLogin} title="登录后查看个人主页并参与论坛"><User size={15} />登录</button>
         )}
       </div>
       <button className="mobile-toggle" onClick={() => setOpen(v => !v)} aria-label="导航菜单">{open ? <X size={18} /> : <ChevronRight size={18} />}</button>
@@ -695,12 +668,13 @@ function Empty({ compact = false }) { return <div className={compact ? 'empty co
    ============================================================ */
 function HomePage({ data }) {
   const previews = [
-    { route: 'knowledge', label: '文章知识库', sub: '飞书文档与站内 PDF 阅读', count: data.knowledge.length },
+    { route: 'knowledge', label: '文章知识库', sub: '飞书文档与设计笔记', count: data.knowledge.length },
     { route: 'events', label: '活动公告', sub: '报名、日历与活动回顾', count: data.events.length },
     { route: 'forum', label: '社团论坛', sub: '技术交流、项目招募与讨论', count: data.forum.length },
     { route: 'media', label: '视频中心', sub: 'Bilibili 合集与录像归档', count: data.media.length },
+    { route: 'music', label: '音乐库', sub: '全局播放器与歌单', count: data.music.length },
     { route: 'resources', label: '资源中心', sub: '模板、资料与工具导航', count: data.resources.length },
-    { route: 'admin', label: '管理后台', sub: '内容管理与协作工具', count: data.members.length }
+    { route: 'profile', label: '个人主页', sub: '个人信息、发帖、评论与回复', meta: '社区档案' }
   ];
   return (
     <main>
@@ -721,10 +695,21 @@ function HomePage({ data }) {
               <button className="ghost-action" onClick={() => go('forum')}>进入论坛</button>
             </div>
           </div>
-          <div className="hero-index">
-            {data.stats.slice(0, 4).map((stat, index) => (
-              <div key={stat.label}><small>{String(index + 1).padStart(2, '0')}</small><strong>{stat.value}</strong><span>{stat.label}</span></div>
-            ))}
+          <div className="hero-side">
+            <div className="hero-index">
+              {data.stats.slice(0, 4).map((stat, index) => (
+                <div key={stat.label}><small>{String(index + 1).padStart(2, '0')}</small><strong>{stat.value}</strong><span>{stat.label}</span></div>
+              ))}
+            </div>
+            <article className="join-card">
+              <div>
+                <small>JOIN TDG</small>
+                <h2>加入梦游室群聊</h2>
+                <p>扫码加入 TDG 群，活动报名、服务器信息和协作通知都会优先在群内同步。</p>
+                <strong>群号：1055138703</strong>
+              </div>
+              <img src={asset('/概念设计图/TDG群二维码.jpg')} alt="TDG 群二维码" loading="lazy" />
+            </article>
           </div>
         </div>
       </section>
@@ -733,36 +718,13 @@ function HomePage({ data }) {
         <div className="preview-grid">
           {previews.map((item) => (
             <button className="preview-link" key={item.route} onClick={() => go(item.route)}>
-              <small>{item.count ? `${item.count} 项` : '暂无'}</small><strong>{item.label}</strong><p>{item.sub}</p><ChevronRight size={18} />
+              <small>{item.meta ?? (item.count ? `${item.count} 项` : '暂无')}</small><strong>{item.label}</strong><p>{item.sub}</p><ChevronRight size={18} />
             </button>
           ))}
         </div>
       </Section>
 
-      <Section id="archive-preview" eyebrow="社团定位 POSITION" title="我们保存创作过程，也推动作品发生">
-        <div className="ak-grid three">
-          {data.archive.map((item) => (
-            <article className="ak-card" key={item.id}><small>{item.code}</small><h3>{item.title}</h3><p>{item.description}</p></article>
-          ))}
-        </div>
-      </Section>
     </main>
-  );
-}
-
-/* ============================================================
-   ARCHIVE PAGE
-   ============================================================ */
-function ArchivePage({ data }) {
-  return (
-    <PageShell eyebrow="档案 ARCHIVE" title="社团档案">
-      <section className="content-section animated-section">
-        <div className="ak-grid three">{data.archive.map((item) => (<article className="ak-card" key={item.id}><small>{item.code}</small><h3>{item.title}</h3><p>{item.description}</p></article>))}</div>
-      </section>
-      <Section eyebrow="项目 PROJECTS" title="项目库">
-        {data.projects.length ? (<div className="ak-grid three">{data.projects.map((p) => (<article className="ak-card" key={p.name}><small>{p.status}</small><h3>{p.name}</h3><p>{p.description}</p><div className="progress-track"><span style={{ width: `${p.progress}%` }} /></div><footer>{p.owner} / {p.stack.join('、')}</footer></article>))}</div>) : <Empty />}
-      </Section>
-    </PageShell>
   );
 }
 
@@ -771,81 +733,14 @@ function ArchivePage({ data }) {
    ============================================================ */
 function KnowledgePage({ data }) {
   const [query, setQuery] = useState('');
-  const [activeDoc, setActiveDoc] = useState(null);
   const docs = data.knowledge.filter((d) => `${d.title}${d.summary}${d.tags.join('')}`.toLowerCase().includes(query.toLowerCase()));
   return (
     <PageShell eyebrow="文章 ARTICLES" title="知识库">
       <section className="content-section animated-section">
         <label className="search-box"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索文章标题、分类或标签" /></label>
-        {docs.length ? (<div className="ak-grid two">{docs.map((doc) => (<article className="ak-card" key={doc.id}><small>{doc.category}{doc.type === 'pdf' ? ' / 站内阅读' : ' / 外部链接'}</small><h3>{doc.title}</h3><p>{doc.summary}</p><div className="tag-row">{doc.tags.map((t) => <span key={t}>{t}</span>)}</div>{doc.type === 'pdf' ? <button className="primary-action small" onClick={() => setActiveDoc(doc)}>站内阅读</button> : <a className="primary-action small" href={doc.url} target="_blank" rel="noreferrer">打开飞书文档 <ExternalLink size={14} /></a>}</article>))}</div>) : <Empty />}
+        {docs.length ? (<div className="ak-grid two">{docs.map((doc) => (<article className="ak-card" key={doc.id}><small>{doc.category} / 外部链接</small><h3>{doc.title}</h3><p>{doc.summary}</p><div className="tag-row">{doc.tags.map((t) => <span key={t}>{t}</span>)}</div><a className="primary-action small" href={doc.url} target="_blank" rel="noreferrer">打开飞书文档 <ExternalLink size={14} /></a></article>))}</div>) : <Empty />}
       </section>
-      {activeDoc && <PdfReader doc={activeDoc} onClose={() => setActiveDoc(null)} />}
     </PageShell>
-  );
-}
-
-/* ============================================================
-   PDF READER — Fullscreen + resize buttons
-   ============================================================ */
-function PdfReader({ doc, onClose }) {
-  const backdropRef = useRef(null);
-  const [size, setSize] = useState('normal'); // 'normal' | 'large' | 'fullscreen' | 'compact'
-  const [fs, setFs] = useState(false);
-  const pdfUrl = asset(doc.url);
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') { if (fs) { setFs(false); setSize('normal'); } else onClose(); } };
-    window.addEventListener('keydown', onKey);
-    document.body.style.overflow = fs ? 'hidden' : '';
-
-    // Hide nav & player when fullscreen
-    const nav = document.querySelector('.top-nav');
-    const player = document.querySelector('.floating-player');
-    if (fs) {
-      if (nav) nav.style.display = 'none';
-      if (player) player.style.display = 'none';
-    } else {
-      if (nav) nav.style.display = '';
-      if (player) player.style.display = '';
-    }
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-      if (nav) nav.style.display = '';
-      if (player) player.style.display = '';
-    };
-  }, [onClose, fs]);
-
-  const sizeClass = fs ? 'fullscreen' : size === 'large' ? 'size-large' : size === 'compact' ? 'size-compact' : '';
-
-  const toggleFs = () => { setFs(!fs); if (!fs) setSize('normal'); };
-  const cycleSize = () => {
-    const sizes = ['normal', 'large', 'compact'];
-    const idx = sizes.indexOf(size);
-    setSize(sizes[(idx + 1) % sizes.length]);
-  };
-
-  const backdropStyle = fs ? { zIndex: 9999, padding: 0, background: 'rgba(0,0,0,0.95)' } : undefined;
-
-  return (
-    <div className="reader-backdrop" ref={backdropRef} style={backdropStyle} onClick={(e) => { if (e.target === backdropRef.current && !fs) onClose(); }}>
-      <section className={`pdf-reader ${sizeClass}`} style={fs ? { zIndex: 10000, position: 'fixed', inset: 0, width: '100vw', height: '100vh', clipPath: 'none' } : undefined}>
-        <header>
-          <div><small>站内 PDF 阅读</small><h2>{doc.title}</h2></div>
-          <div className="header-actions">
-            <button className="icon-button" onClick={cycleSize} aria-label="调整尺寸" title="切换尺寸"><ZoomOut size={16} /></button>
-            <button className="icon-button" onClick={toggleFs} aria-label="全屏" title="全屏阅读">{fs ? <Minimize size={16} /> : <Maximize size={16} />}</button>
-            <button className="icon-button" onClick={onClose} aria-label="关闭"><X size={16} /></button>
-          </div>
-        </header>
-        <object data={`${pdfUrl}#view=FitH&toolbar=0`} type="application/pdf" style={{ width: '100%', height: '100%', border: 0, background: '#fff' }}>
-          <iframe title={doc.title} src={`${pdfUrl}#view=FitH&toolbar=0&navpanes=0`} style={{ width: '100%', height: '100%', border: 0, background: '#fff' }} loading="lazy">
-            <div className="pdf-fallback"><FileText size={48} /><p>您的浏览器不支持内嵌 PDF 阅读。请下载文件后使用本地阅读器查看。</p><a className="primary-action small" href={pdfUrl} download><Download size={15} /> 下载 PDF</a></div>
-          </iframe>
-        </object>
-        <footer><span>如无法加载，可下载后使用本地阅读器查看。</span><a href={pdfUrl} download><Download size={14} /> 下载</a></footer>
-      </section>
-    </div>
   );
 }
 
@@ -853,10 +748,11 @@ function PdfReader({ doc, onClose }) {
    EVENTS PAGE
    ============================================================ */
 function EventsPage({ data }) {
+  const statusText = { UPCOMING: '即将开始', ONGOING: '进行中', FINISHED: '已结束' };
   return (
     <PageShell eyebrow="活动 EVENTS" title="活动公告">
       <section className="content-section animated-section">
-        {data.events.length ? (<div className="ak-grid three">{data.events.map((event) => (<article className="ak-card" key={event.name}><small>{event.status === 'UPCOMING' ? '即将开始' : '已结束'}</small><h3>{event.name}</h3><p>{event.description}</p><footer>{event.date} / {event.location}</footer>{event.actionUrl ? <a className="ghost-action small" href={event.actionUrl} target="_blank" rel="noreferrer">{event.actionLabel} <ExternalLink size={14} /></a> : null}</article>))}</div>) : <Empty />}
+        {data.events.length ? (<div className="ak-grid three">{data.events.map((event) => (<article className="ak-card" key={event.name}><small>{statusText[event.status] ?? event.status}</small><h3>{event.name}</h3><p>{event.description}</p><footer>{event.date} / {event.location}</footer>{event.actionUrl ? <a className="ghost-action small" href={event.actionUrl} target="_blank" rel="noreferrer">{event.actionLabel} <ExternalLink size={14} /></a> : null}</article>))}</div>) : <Empty />}
       </section>
     </PageShell>
   );
@@ -1192,27 +1088,132 @@ function MusicPage({ data }) {
 }
 
 /* ============================================================
-   ADMIN PAGE
+   PROFILE PAGE
    ============================================================ */
-function AdminPage({ data, user, onLogin }) {
+function useUserActivity(user) {
+  const [activity, setActivity] = useState({ loading: false, profile: null, posts: [], comments: [], replies: [] });
+
+  useEffect(() => {
+    let alive = true;
+    if (!user) {
+      setActivity({ loading: false, profile: null, posts: [], comments: [], replies: [] });
+      return () => { alive = false; };
+    }
+
+    setActivity((current) => ({ ...current, loading: true }));
+    (async () => {
+      const [profileRes, postsRes, commentsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('posts').select('id,title,board,likes_count,comments_count,created_at').eq('author_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('comments').select('id,content,created_at,post:post_id(id,title,board)').eq('author_id', user.id).order('created_at', { ascending: false }).limit(30)
+      ]);
+
+      const posts = postsRes.data || [];
+      let replies = [];
+      if (posts.length) {
+        const { data } = await supabase
+          .from('comments')
+          .select('id,content,created_at,author:author_id(id,username,display_name,avatar_url),post:post_id(id,title,board)')
+          .in('post_id', posts.map((post) => post.id))
+          .neq('author_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
+        replies = data || [];
+      }
+
+      if (alive) setActivity({ loading: false, profile: profileRes.data || null, posts, comments: commentsRes.data || [], replies });
+    })();
+
+    return () => { alive = false; };
+  }, [user?.id]);
+
+  return activity;
+}
+
+function ProfilePage({ user, onLogin }) {
+  const activity = useUserActivity(user);
+  const displayName = activity.profile?.display_name || user?.name || user?.login || 'TDG 成员';
+  const avatar = activity.profile?.avatar_url || user?.avatar;
+  const likesReceived = activity.posts.reduce((sum, post) => sum + (post.likes_count || 0), 0);
+  const stats = [
+    { label: '发帖记录', value: activity.posts.length, icon: FileText },
+    { label: '评论记录', value: activity.comments.length, icon: MessageSquare },
+    { label: '获赞量', value: likesReceived, icon: Heart },
+    { label: '回复你的', value: activity.replies.length, icon: Bell }
+  ];
+  const formatTime = (value) => value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '';
+
   return (
-    <PageShell eyebrow="后台 ADMIN" title="管理后台">
-      {!user?.isAdmin ? (
+    <PageShell eyebrow="个人 PROFILE" title="个人主页">
+      {!user ? (
         <section className="content-section animated-section">
-          <article className="admin-card" style={{ textAlign: 'center' }}><Lock size={26} style={{ marginBottom: 16 }} /><h3>需要管理员权限</h3><p>仅社团管理员 (xiao-he-he) 可访问后台。请使用 GitHub 登录。</p>{!user && <button className="primary-action small" onClick={onLogin}>GitHub 登录</button>}</article>
+          <article className="admin-card profile-auth">
+            <User size={28} />
+            <h3>需要登录</h3>
+            <p>登录后可查看个人信息、发帖记录、评论记录、获赞量和回复你的消息。</p>
+            <button className="primary-action small" onClick={onLogin}>GitHub 登录</button>
+          </article>
         </section>
       ) : (
         <>
           <section className="content-section animated-section">
-            <span className="kicker"><GradientText>成员与权限 ROLES</GradientText></span><h2 className="section-title">角色权限</h2>
-            <div className="ak-grid three">{data.members.map((role) => (<article className="admin-card" key={role.role}><small>{role.level}</small><h3>{role.role}</h3><p>{role.description}</p><footer>{role.permissions.join('、')}</footer></article>))}</div>
+            <article className="profile-hero-card">
+              <div className="profile-identity">
+                {avatar ? <img src={avatar} alt="" /> : <span><User size={30} /></span>}
+                <div>
+                  <small>{user.isAdmin ? '管理员 / ADMIN' : '成员 / MEMBER'}</small>
+                  <h2>{displayName}</h2>
+                  <p>@{user.login}</p>
+                </div>
+              </div>
+              <p>这里汇总你在 TDG 网站中的社区活动。后续可继续接入收藏、私信、个人作品集和活动报名记录。</p>
+            </article>
+            <div className="profile-stats">
+              {stats.map((stat) => {
+                const Icon = stat.icon;
+                return <article className="admin-card" key={stat.label}><small>{stat.label}</small><Icon size={22} /><h3>{stat.value}</h3></article>;
+              })}
+            </div>
           </section>
-          {data.integrations.links.length > 0 && (
-            <section className="content-section animated-section">
-              <span className="kicker"><GradientText>集成 INTEGRATIONS</GradientText></span><h2 className="section-title">飞书链接</h2>
-              <div className="ak-grid three">{data.integrations.links.map((link) => (<a className="ak-card" href={link.url} target="_blank" rel="noreferrer" key={link.label}><small>{link.type}</small><h3>{link.label}</h3></a>))}</div>
-            </section>
-          )}
+          <Section eyebrow="发帖 POSTS" title="我的发帖">
+            {activity.loading ? <Empty compact /> : activity.posts.length ? (
+              <div className="profile-list">{activity.posts.slice(0, 8).map((post) => (
+                <button className="ak-card profile-list-item" key={post.id} onClick={() => go('forum')}>
+                  <small>{BOARDS.find((b) => b.code === post.board)?.name || post.board} / {formatTime(post.created_at)}</small>
+                  <h3>{post.title}</h3>
+                  <footer>❤ {post.likes_count || 0} / 评论 {post.comments_count || 0}</footer>
+                </button>
+              ))}</div>
+            ) : <Empty />}
+          </Section>
+          <Section eyebrow="评论 COMMENTS" title="我的评论">
+            {activity.loading ? <Empty compact /> : activity.comments.length ? (
+              <div className="profile-list">{activity.comments.slice(0, 8).map((comment) => (
+                <article className="ak-card profile-list-item" key={comment.id}>
+                  <small>{comment.post?.title || '帖子'} / {formatTime(comment.created_at)}</small>
+                  <p>{comment.content}</p>
+                </article>
+              ))}</div>
+            ) : <Empty />}
+          </Section>
+          <Section eyebrow="消息 REPLIES" title="回复你的">
+            {activity.loading ? <Empty compact /> : activity.replies.length ? (
+              <div className="profile-list">{activity.replies.slice(0, 8).map((reply) => (
+                <article className="ak-card profile-list-item" key={reply.id}>
+                  <small>{reply.author?.display_name || reply.author?.username || '匿名'} 回复了《{reply.post?.title || '帖子'}》</small>
+                  <p>{reply.content}</p>
+                  <footer>{formatTime(reply.created_at)}</footer>
+                </article>
+              ))}</div>
+            ) : <Empty />}
+          </Section>
+          <Section eyebrow="入口 SHORTCUTS" title="常用入口">
+            <div className="preview-grid">
+              <button className="preview-link" onClick={() => go('forum')}><small>FORUM</small><strong>进入论坛</strong><p>发帖、评论或查看社团讨论。</p><ChevronRight size={18} /></button>
+              <button className="preview-link" onClick={() => go('events')}><small>EVENTS</small><strong>查看活动</strong><p>关注 MC 暑期服务器和后续活动。</p><ChevronRight size={18} /></button>
+              <button className="preview-link" onClick={() => go('knowledge')}><small>ARTICLES</small><strong>进入文章库</strong><p>查看飞书文档与设计笔记。</p><ChevronRight size={18} /></button>
+            </div>
+          </Section>
         </>
       )}
     </PageShell>
@@ -1324,6 +1325,7 @@ function App() {
   const { route, sub } = useRoute();
   const { data, loading } = useContent();
   const { user, login, logout } = useSupabaseAuth();
+  const mobileMode = useMobileMode();
   const activeRoute = routeMap[route] ? route : 'home';
   useGsapPage(activeRoute, loading);
 
@@ -1331,21 +1333,20 @@ function App() {
     if (loading) return <div className="loading">载入中</div>;
     const props = { data };
     switch (activeRoute) {
-      case 'archive': return <ArchivePage {...props} />;
       case 'knowledge': return <KnowledgePage {...props} />;
       case 'events': return <EventsPage {...props} />;
       case 'forum': return <ForumPage sub={sub} user={user} />;
       case 'media': return <MediaPage {...props} />;
       case 'music': return <MusicPage {...props} />;
       case 'resources': return <ResourcesPage {...props} />;
-      case 'admin': return <AdminPage {...props} user={user} onLogin={login} />;
+      case 'profile': return <ProfilePage user={user} onLogin={login} />;
       default: return <HomePage {...props} />;
     }
-  }, [activeRoute, sub, data, loading, user]);
+  }, [activeRoute, sub, data, loading, user, login]);
 
   return (
-    <ClickSpark sparkColor="#EF4444" sparkSize={20} sparkRadius={30} sparkCount={10} duration={400}>
-      <PixelSnow color="#e8eef4" flakeSize={0.008} pixelResolution={800} speed={0.7} density={0.22} variant="snowflake" direction={130} brightness={0.65} />
+    <ClickSpark sparkColor="#EF4444" sparkSize={20} sparkRadius={30} sparkCount={10} duration={400} disabled={mobileMode}>
+      {!mobileMode && <PixelSnow color="#e8eef4" flakeSize={0.008} pixelResolution={800} speed={0.7} density={0.22} variant="snowflake" direction={130} brightness={0.65} />}
       <TopNav route={activeRoute} user={user} onLogin={login} onLogout={logout} />
       {page}
       <MusicPlayer tracks={data.music} />

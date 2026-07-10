@@ -1,12 +1,12 @@
 [
   {
     "label": "成员数量",
-    "value": "001",
+    "value": "004",
     "caption": "社团成员与协作创作者"
   },
   {
     "label": "活动数量",
-    "value": "000",
+    "value": "001",
     "caption": "工作坊、Game Jam 与分享会"
   },
   {
@@ -16,8 +16,8 @@
   },
   {
     "label": "知识文档",
-    "value": "002",
-    "caption": "飞书 Wiki 与站内文章"
+    "value": "001",
+    "caption": "飞书 Wiki 与设计笔记"
   },
   {
     "label": "资源数量",

@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "name": "MC暑期服务器",
+    "status": "ONGOING",
+    "date": "2026/7/10 - 2026/9/7",
+    "location": "进 TDG 群了解",
+    "description": "暑期 Minecraft 服务器活动，进 TDG 群了解服务器信息、规则与参与方式。",
+    "actionLabel": "入群了解",
+    "actionUrl": ""
+  }
+]
