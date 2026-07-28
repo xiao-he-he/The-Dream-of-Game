@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const workspaceRoot = process.cwd();
 const distRoot = path.resolve(workspaceRoot, 'dist');
-const folders = ['content', '文章', 'music', 'video', '概念设计图', '排版及平设参考图'];
+const folders = ['content', '文章', 'music', '概念设计图', '排版及平设参考图'];
 
 function copyDirectory(source, target) {
   fs.rmSync(target, { recursive: true, force: true });

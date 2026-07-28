@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "minecraft-panel-server-tutorial",
+    "category": "我的世界 / 服务器教程",
+    "title": "我的世界面板服务器搭建详细教程",
+    "description": "从服务器面板配置到 Minecraft 服务端启动的完整搭建流程，适合需要自行部署和维护服务器的成员观看。",
+    "poster": "/排版及平设参考图/minecraft-panel-server-tutorial.jpg",
+    "objectKey": "tutorials/我的世界面板服务器搭建详细教程.mp4",
+    "localSrc": "/video/我的世界面板服务器搭建详细教程.mp4",
+    "duration": "46:39",
+    "resolution": "1080P / 60 FPS",
+    "publishedAt": "2026-07-26"
+  }
+]

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 import {
-  Bell, BookOpen, CalendarDays, ChevronRight, Disc3, ExternalLink,
+  ArrowLeft, Bell, BookOpen, CalendarDays, ChevronRight, Disc3, ExternalLink,
   FileText, Film, Heart, Home, MessageSquare,
   Music2, Pause, Play, Repeat, Search, Shuffle, SkipBack, SkipForward, User, Volume2, X, ListMusic
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import './styles.css';
    BASE PATH — works in dev (/) and GitHub Pages (/The-Dream-of-Game/)
    ============================================================ */
 const BASE = import.meta.env.BASE_URL;
+const MEDIA_BASE_URL = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/+$/, '');
 
 /* ============================================================
    SUPABASE CLIENT
@@ -57,6 +58,13 @@ const emptyData = { knowledge:[], events:[], forum:[], media:[], music:[], membe
 
 // Helper: prepend BASE to internal paths, leave external URLs alone
 const asset = (path) => (!path || path.startsWith('http') ? path : `${BASE}${path.replace(/^\//, '')}`);
+const videoSource = (video) => {
+  if (MEDIA_BASE_URL && video?.objectKey) {
+    const key = video.objectKey.split('/').map(encodeURIComponent).join('/');
+    return `${MEDIA_BASE_URL}/${key}`;
+  }
+  return import.meta.env.DEV && video?.localSrc ? asset(video.localSrc) : '';
+};
 
 /* ============================================================
    ROUTING
@@ -1048,11 +1056,74 @@ function PostDetailView({ postId, user, onBack }) {
 /* ============================================================
    MEDIA PAGE
    ============================================================ */
-function MediaPage({ data }) {
+function VideoDetailPage({ video }) {
+  if (!video) {
+    return (
+      <PageShell eyebrow="视频 MEDIA" title="未找到视频">
+        <section className="content-section video-detail">
+          <button className="ghost-action small" onClick={() => go('media')}><ArrowLeft size={14} /> 返回视频中心</button>
+          <Empty />
+        </section>
+      </PageShell>
+    );
+  }
+
+  const src = videoSource(video);
+  return (
+    <PageShell eyebrow={`${video.category} / VIDEO`} title={video.title}>
+      <section className="content-section video-detail">
+        <button className="ghost-action small video-back" onClick={() => go('media')}><ArrowLeft size={14} /> 返回视频中心</button>
+        {src ? (
+          <video className="video-player" controls playsInline preload="metadata" poster={asset(video.poster)}>
+            <source src={src} type="video/mp4" />
+            你的浏览器不支持 HTML5 视频播放。
+          </video>
+        ) : (
+          <div className="video-unavailable">
+            <Film size={28} />
+            <strong>视频地址尚未配置</strong>
+            <span>请在 GitHub 仓库变量中设置 VITE_MEDIA_BASE_URL。</span>
+          </div>
+        )}
+        <div className="video-meta">
+          <span>{video.duration}</span>
+          <span>{video.resolution}</span>
+          <span>{video.publishedAt}</span>
+        </div>
+        <p className="video-description">{video.description}</p>
+      </section>
+    </PageShell>
+  );
+}
+
+function MediaPage({ data, sub }) {
+  if (sub) {
+    const video = data.media.find((item) => item.id === decodeURIComponent(sub));
+    return <VideoDetailPage video={video} />;
+  }
+
   return (
     <PageShell eyebrow="视频 MEDIA" title="视频中心">
       <section className="content-section animated-section">
-        {data.media.length ? (<div className="video-grid">{data.media.map((v) => (<article className="ak-card" key={v.title}><small>{v.category}</small><h3>{v.title}</h3><p>{v.description}</p>{v.embedUrl ? <iframe title={v.title} src={v.embedUrl} loading="lazy" allowFullScreen /> : <Empty compact />}{v.externalUrl ? <a className="ghost-action small" href={v.externalUrl} target="_blank" rel="noreferrer">前往 Bilibili <ExternalLink size={14} /></a> : null}</article>))}</div>) : <Empty />}
+        {data.media.length ? (
+          <div className="video-grid">
+            {data.media.map((video) => (
+              <article className="ak-card video-card" key={video.id}>
+                <button className="video-thumb" onClick={() => go(`media/${video.id}`)} aria-label={`播放 ${video.title}`}>
+                  <img src={asset(video.poster)} alt="" loading="lazy" />
+                  <span className="video-play"><Play size={22} fill="currentColor" /></span>
+                  <span className="video-duration">{video.duration}</span>
+                </button>
+                <div className="video-card-copy">
+                  <small>{video.category}</small>
+                  <h3>{video.title}</h3>
+                  <p>{video.description}</p>
+                  <button className="primary-action small" onClick={() => go(`media/${video.id}`)}><Play size={14} /> 播放视频</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <Empty />}
       </section>
     </PageShell>
   );
@@ -1336,7 +1407,7 @@ function App() {
       case 'knowledge': return <KnowledgePage {...props} />;
       case 'events': return <EventsPage {...props} />;
       case 'forum': return <ForumPage sub={sub} user={user} />;
-      case 'media': return <MediaPage {...props} />;
+      case 'media': return <MediaPage {...props} sub={sub} />;
       case 'music': return <MusicPage {...props} />;
       case 'resources': return <ResourcesPage {...props} />;
       case 'profile': return <ProfilePage user={user} onLogin={login} />;
@@ -1349,7 +1420,7 @@ function App() {
       {!mobileMode && <PixelSnow color="#e8eef4" flakeSize={0.008} pixelResolution={800} speed={0.7} density={0.22} variant="snowflake" direction={130} brightness={0.65} />}
       <TopNav route={activeRoute} user={user} onLogin={login} onLogout={logout} />
       {page}
-      <MusicPlayer tracks={data.music} />
+      {activeRoute !== 'media' && <MusicPlayer tracks={data.music} />}
     </ClickSpark>
   );
 }

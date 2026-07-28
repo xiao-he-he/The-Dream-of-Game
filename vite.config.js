@@ -52,8 +52,47 @@ function exposeWorkspaceFolders() {
           return;
         }
 
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          next();
+          return;
+        }
+
+        const size = fs.statSync(filePath).size;
         res.setHeader('Content-Type', mimeTypes[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream');
-        fs.createReadStream(filePath).pipe(res);
+        res.setHeader('Accept-Ranges', 'bytes');
+
+        const range = req.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+        if (req.headers.range && !range) {
+          res.statusCode = 416;
+          res.setHeader('Content-Range', `bytes */${size}`);
+          res.end();
+          return;
+        }
+
+        if (range) {
+          const suffixLength = range[1] === '' ? Number(range[2]) : null;
+          const start = suffixLength === null ? Number(range[1]) : Math.max(size - suffixLength, 0);
+          const requestedEnd = suffixLength === null && range[2] !== '' ? Number(range[2]) : size - 1;
+          const end = Math.min(requestedEnd, size - 1);
+
+          if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start > end || start >= size) {
+            res.statusCode = 416;
+            res.setHeader('Content-Range', `bytes */${size}`);
+            res.end();
+            return;
+          }
+
+          res.statusCode = 206;
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+          res.setHeader('Content-Length', end - start + 1);
+          if (req.method === 'HEAD') res.end();
+          else fs.createReadStream(filePath, { start, end }).pipe(res);
+          return;
+        }
+
+        res.setHeader('Content-Length', size);
+        if (req.method === 'HEAD') res.end();
+        else fs.createReadStream(filePath).pipe(res);
       });
     }
   };
