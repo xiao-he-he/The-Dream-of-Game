@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
+import { animate, motion, useMotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import {
   ArrowLeft, Bell, BookOpen, CalendarDays, ChevronRight, Disc3, ExternalLink,
   FileText, Film, Heart, Home, MessageSquare,
@@ -454,33 +455,154 @@ function GradientText({ children, colors = ['#EAB308', '#FF9FFC', '#B497CF'], sp
   );
 }
 
+const MAX_SLIDER_OVERFLOW = 50;
+
+function decaySliderOverflow(value, max) {
+  if (max === 0) return 0;
+  const entry = value / max;
+  return 2 * (1 / (1 + Math.exp(-entry)) - 0.5) * max;
+}
+
 function ElasticSlider({ defaultValue = 50, startingValue = 0, maxValue = 100, isStepped = false, stepSize = 1, leftIcon, rightIcon, onChange }) {
   const [value, setValue] = useState(defaultValue);
+  const [region, setRegion] = useState('middle');
+  const sliderRef = useRef(null);
+  const draggingRef = useRef(false);
+  const clientX = useMotionValue(0);
+  const overflow = useMotionValue(0);
+  const scale = useMotionValue(1);
 
   useEffect(() => { setValue(defaultValue); }, [defaultValue]);
-  useEffect(() => { onChange?.(value); }, [value, onChange]);
+
+  useMotionValueEvent(clientX, 'change', (latest) => {
+    if (!sliderRef.current) return;
+    const { left, right } = sliderRef.current.getBoundingClientRect();
+    let nextRegion = 'middle';
+    let overflowDistance = 0;
+
+    if (latest < left) {
+      nextRegion = 'left';
+      overflowDistance = left - latest;
+    } else if (latest > right) {
+      nextRegion = 'right';
+      overflowDistance = latest - right;
+    }
+
+    setRegion(nextRegion);
+    overflow.jump(decaySliderOverflow(overflowDistance, MAX_SLIDER_OVERFLOW));
+  });
+
+  const wrapperOpacity = useTransform(scale, [1, 1.2], [0.7, 1]);
+  const leftIconX = useTransform(() => region === 'left' ? -overflow.get() / scale.get() : 0);
+  const rightIconX = useTransform(() => region === 'right' ? overflow.get() / scale.get() : 0);
+  const trackScaleX = useTransform(() => {
+    const width = sliderRef.current?.getBoundingClientRect().width || 1;
+    return 1 + overflow.get() / width;
+  });
+  const trackScaleY = useTransform(overflow, [0, MAX_SLIDER_OVERFLOW], [1, 0.8]);
+  const trackHeight = useTransform(scale, [1, 1.2], [6, 12]);
+  const trackMargin = useTransform(scale, [1, 1.2], [0, -3]);
+  const trackOrigin = useTransform(() => {
+    const rect = sliderRef.current?.getBoundingClientRect();
+    if (!rect) return 'center';
+    return clientX.get() < rect.left + rect.width / 2 ? 'right' : 'left';
+  });
 
   const totalRange = maxValue - startingValue;
   const percentage = totalRange === 0 ? 0 : ((value - startingValue) / totalRange) * 100;
 
+  const commitValue = useCallback((nextValue) => {
+    let normalized = Math.min(Math.max(nextValue, startingValue), maxValue);
+    if (isStepped) normalized = Math.round(normalized / stepSize) * stepSize;
+    setValue(normalized);
+    onChange?.(normalized);
+  }, [isStepped, maxValue, onChange, startingValue, stepSize]);
+
+  const updateFromPointer = useCallback((event) => {
+    if (!sliderRef.current) return;
+    const { left, width } = sliderRef.current.getBoundingClientRect();
+    const nextValue = startingValue + ((event.clientX - left) / width) * totalRange;
+    commitValue(nextValue);
+    clientX.jump(event.clientX);
+  }, [clientX, commitValue, startingValue, totalRange]);
+
+  const handlePointerDown = (event) => {
+    draggingRef.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateFromPointer(event);
+  };
+
+  const handlePointerMove = (event) => {
+    if (draggingRef.current) updateFromPointer(event);
+  };
+
+  const handlePointerUp = () => {
+    draggingRef.current = false;
+    animate(overflow, 0, { type: 'spring', bounce: 0.5 });
+  };
+
+  const handleKeyDown = (event) => {
+    const increment = isStepped ? stepSize : 1;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') commitValue(value - increment);
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') commitValue(value + increment);
+    else if (event.key === 'Home') commitValue(startingValue);
+    else if (event.key === 'End') commitValue(maxValue);
+    else return;
+    event.preventDefault();
+  };
+
   return (
     <div className="elastic-slider">
-      <div className="elastic-slider-wrap">
-        <span className="elastic-slider-icon">{leftIcon}</span>
-        <label className="elastic-slider-root" aria-label="音量">
-          <input
-            className="elastic-slider-native"
-            type="range"
-            min={startingValue}
-            max={maxValue}
-            step={isStepped ? stepSize : 1}
-            value={value}
-            style={{ '--slider-progress': `${percentage}%` }}
-            onChange={(event) => setValue(Number(event.target.value))}
-          />
-        </label>
-        <span className="elastic-slider-icon">{rightIcon}</span>
-      </div>
+      <motion.div
+        className="elastic-slider-wrap"
+        style={{ scale, opacity: wrapperOpacity }}
+        onHoverStart={() => animate(scale, 1.2)}
+        onHoverEnd={() => animate(scale, 1)}
+        onTouchStart={() => animate(scale, 1.2)}
+        onTouchEnd={() => animate(scale, 1)}
+      >
+        <motion.span
+          className="elastic-slider-icon"
+          style={{ x: leftIconX }}
+          animate={{ scale: region === 'left' ? [1, 1.4, 1] : 1 }}
+          transition={{ duration: 0.25 }}
+        >{leftIcon}</motion.span>
+        <div
+          ref={sliderRef}
+          className="elastic-slider-root"
+          role="slider"
+          tabIndex={0}
+          aria-label="音量"
+          aria-valuemin={startingValue}
+          aria-valuemax={maxValue}
+          aria-valuenow={Math.round(value)}
+          onKeyDown={handleKeyDown}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onLostPointerCapture={handlePointerUp}
+        >
+          <motion.div className="elastic-slider-track-wrap" style={{
+            scaleX: trackScaleX,
+            scaleY: trackScaleY,
+            transformOrigin: trackOrigin,
+            height: trackHeight,
+            marginTop: trackMargin,
+            marginBottom: trackMargin
+          }}>
+            <div className="elastic-slider-track">
+              <div className="elastic-slider-range" style={{ width: `${percentage}%` }} />
+            </div>
+          </motion.div>
+        </div>
+        <motion.span
+          className="elastic-slider-icon"
+          style={{ x: rightIconX }}
+          animate={{ scale: region === 'right' ? [1, 1.4, 1] : 1 }}
+          transition={{ duration: 0.25 }}
+        >{rightIcon}</motion.span>
+      </motion.div>
       <span className="elastic-slider-value">{Math.round(value)}</span>
     </div>
   );
@@ -492,8 +614,14 @@ function ElasticSlider({ defaultValue = 50, startingValue = 0, maxValue = 100, i
 function useGsapPage(route, loading) {
   useEffect(() => {
     if (loading) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    if (window.matchMedia('(max-width: 760px)').matches) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mobileLayout = window.matchMedia('(max-width: 760px)').matches;
+    if (reducedMotion || mobileLayout) {
+      document.querySelectorAll('.opening-mask, .opening-mask-sub').forEach((mask) => {
+        mask.style.display = 'none';
+      });
+      return;
+    }
     let ctx = null;
     let timer = 0;
     let cancelled = false;
@@ -697,7 +825,7 @@ function HomePage({ data }) {
               <span><span className="hero-title-line">游戏创作社群</span></span>
             </h1>
             <span className="hero-subtitle">The Dream of Game (TDG)</span>
-            <p>面向游戏开发、视觉设计、技术美术与项目协作的社团数字基地。我们记录知识，组织活动，保存作品，连接正在创造游戏的人。</p>
+            <p>面向游戏开发、美术设计、技术交流与项目协作的同好会数字基地。我们记录知识，组织活动，保存作品，连接正在创造游戏的人。</p>
             <div className="hero-actions">
               <button className="primary-action" onClick={() => go('knowledge')}>进入文章库</button>
               <button className="ghost-action" onClick={() => go('forum')}>进入论坛</button>
