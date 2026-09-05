@@ -10,5 +10,17 @@
     "duration": "46:39",
     "resolution": "1080P / 60 FPS",
     "publishedAt": "2026-07-26"
+  },
+  {
+    "id": "tdg26-1-preview-live",
+    "category": "TDG / 特别节目",
+    "title": "TDG26.1前瞻特别节目录播",
+    "description": "TDG26.1 前瞻特别节目完整录播，收录最新内容展示与现场分享。",
+    "poster": "/排版及平设参考图/tdg26-1-preview.jpg",
+    "objectKey": "tutorials/tdg26-1-preview-live.mp4",
+    "localSrc": "/video/TDG26.1前瞻特别节目录播.mp4",
+    "duration": "79:52",
+    "resolution": "1080P / 60 FPS",
+    "publishedAt": "2026-09-06"
   }
 ]
