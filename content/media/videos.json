@@ -22,5 +22,17 @@
     "duration": "79:52",
     "resolution": "1080P / 60 FPS",
     "publishedAt": "2026-09-06"
+  },
+  {
+    "id": "game-dev-intro-episode-1",
+    "category": "游戏开发 / 入门教程",
+    "title": "游戏开发入门 第一集",
+    "description": "面向初学者的游戏开发入门课程第一集，从基础概念与制作流程开始认识游戏开发。",
+    "poster": "/排版及平设参考图/game-dev-intro-episode-1.jpg",
+    "objectKey": "tutorials/game-dev-intro-episode-1.mp4",
+    "localSrc": "/video/游戏开发入门 第一集.mp4",
+    "duration": "159:54",
+    "resolution": "1846×1032 / 30 FPS",
+    "publishedAt": "2026-09-09"
   }
 ]
