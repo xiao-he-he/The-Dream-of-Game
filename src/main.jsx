@@ -1230,12 +1230,17 @@ function MediaPage({ data, sub }) {
     return <VideoDetailPage video={video} />;
   }
 
+  const videos = [...data.media].sort((a, b) => {
+    const dateDiff = new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
+    return dateDiff || String(b.id).localeCompare(String(a.id));
+  });
+
   return (
     <PageShell eyebrow="视频 MEDIA" title="视频中心">
       <section className="content-section animated-section">
-        {data.media.length ? (
+        {videos.length ? (
           <div className="video-grid">
-            {data.media.map((video) => (
+            {videos.map((video) => (
               <article className="ak-card video-card" key={video.id}>
                 <button className="video-thumb" onClick={() => go(`media/${video.id}`)} aria-label={`播放 ${video.title}`}>
                   <img src={asset(video.poster)} alt="" loading="lazy" />
