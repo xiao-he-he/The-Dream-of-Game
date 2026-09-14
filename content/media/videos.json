@@ -34,5 +34,29 @@
     "duration": "159:54",
     "resolution": "1846×1032 / 30 FPS",
     "publishedAt": "2026-09-09"
+  },
+  {
+    "id": "ai-game-development-experience",
+    "category": "AI / 游戏开发分享",
+    "title": "AI游戏开发经验分享",
+    "description": "围绕 AI 辅助游戏开发的实际经验展开，分享工具使用、工作流程与开发过程中的思考。",
+    "poster": "/排版及平设参考图/ai-game-development-experience.jpg",
+    "objectKey": "tutorials/ai-game-development-experience.mp4",
+    "localSrc": "/video/AI游戏开发经验分享.mp4",
+    "duration": "77:37",
+    "resolution": "1846×1032 / 30 FPS",
+    "publishedAt": "2026-09-14"
+  },
+  {
+    "id": "game-dev-intro-episode-2",
+    "category": "游戏开发 / 入门教程",
+    "title": "游戏开发入门 第二集",
+    "description": "游戏开发入门课程第二集，在第一集的基础上继续介绍游戏制作知识与实践流程。",
+    "poster": "/排版及平设参考图/game-dev-intro-episode-2.jpg",
+    "objectKey": "tutorials/game-dev-intro-episode-2.mp4",
+    "localSrc": "/video/游戏开发入门 第二集.mp4",
+    "duration": "76:42",
+    "resolution": "1846×1032 / 30 FPS",
+    "publishedAt": "2026-09-14"
   }
 ]

@@ -1231,8 +1231,7 @@ function MediaPage({ data, sub }) {
   }
 
   const videos = [...data.media].sort((a, b) => {
-    const dateDiff = new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
-    return dateDiff || String(b.id).localeCompare(String(a.id));
+    return new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
   });
 
   return (
