@@ -58,5 +58,17 @@
     "duration": "76:42",
     "resolution": "1846×1032 / 30 FPS",
     "publishedAt": "2026-09-14"
+  },
+  {
+    "id": "team-up-make-games-for-life",
+    "category": "游戏开发 / 创作分享",
+    "title": "一起组队做一辈子游戏吧",
+    "description": "关于长期组队、共同创作与持续做游戏的分享，记录一起把兴趣变成作品的想法与实践。",
+    "poster": "/排版及平设参考图/team-up-make-games-for-life.jpg",
+    "objectKey": "tutorials/team-up-make-games-for-life.mp4",
+    "localSrc": "/video/一起组队做一辈子游戏吧.mp4",
+    "duration": "77:11",
+    "resolution": "1846×1032 / 30 FPS",
+    "publishedAt": "2026-09-28"
   }
 ]
