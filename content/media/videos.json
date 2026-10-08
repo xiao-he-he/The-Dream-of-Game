@@ -70,5 +70,17 @@
     "duration": "77:11",
     "resolution": "1846×1032 / 30 FPS",
     "publishedAt": "2026-09-28"
+  },
+  {
+    "id": "game-design-overview",
+    "category": "游戏设计 / 基础概论",
+    "title": "游戏设计概论",
+    "description": "围绕游戏设计的核心概念、设计思路与实践方法展开的系统介绍。",
+    "poster": "/排版及平设参考图/game-design-overview.jpg",
+    "objectKey": "tutorials/game-design-overview.mp4",
+    "localSrc": "/video/游戏设计概论.mp4",
+    "duration": "74:56",
+    "resolution": "1846×1032 / 30 FPS",
+    "publishedAt": "2026-10-08"
   }
 ]
